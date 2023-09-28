@@ -85,10 +85,33 @@ async def on_sub(sub: ChatSub):
 
 # this will be called whenever the !reply command is issued
 async def pause_command(cmd: ChatCommand):
-    if len(cmd.parameter) == 0:
-        await cmd.reply("you did not tell me what to reply with")
+    if LIVE_STATS["pause_start"] is not None:
+        await cmd.reply(f"Pause already started at {LIVE_STATS['pause_start']}")
     else:
-        await cmd.reply(f"{cmd.user.name}: {cmd.parameter}")
+        LIVE_STATS["pause_start"] = datetime.now(tz=UTC)
+        await cmd.reply("Pause started")
+
+
+async def resume_command(cmd: ChatCommand):
+    if LIVE_STATS["pause_start"] is None:
+        await cmd.reply("Pause not started")
+    else:
+        LIVE_STATS["pause_min"] = (datetime.now(tz=UTC) - LIVE_STATS["pause_start"]).total_seconds() / 60
+        await cmd.reply(
+            f"Pause resumed with an addition of "
+            f"{(datetime.now(tz=UTC) - LIVE_STATS['pause_start']).total_seconds() / 60} minutes for a total "
+            f" of {LIVE_STATS['pause_min']} minutes"
+        )
+        Path(SETTINGS["db"]["pause"]).write_text(f"{LIVE_STATS['pause_min']}")
+
+
+def load_pause(file_path: Path):
+    if not file_path.is_file():
+        log.warning(f"No pause file found at {file_path}, creating one")
+        file_path.parent.mkdir(exist_ok=True, parents=True)
+        file_path.write_text("0.0")
+        return
+    LIVE_STATS["pause_min"] = float(file_path.read_text())
 
 
 # Load CSV log file for refreshing stats
@@ -215,6 +238,7 @@ async def main(settings: dict):
 
     # you can directly register commands and their handlers
     chat.register_command("tpause", pause_command)
+    chat.register_command("tresume", resume_command)
 
     # we are done with our setup, lets start this bot up!
     chat.start()
@@ -243,13 +267,15 @@ if __name__ == "__main__":
     SETTINGS = toml.load("settings.toml")
     START_TIME = datetime.fromisoformat(SETTINGS["start"]["time"])
     LIVE_STATS = {
-        "pause_min": 0,
+        "pause_min": 0.0,
+        "pause_start": None,
         "donos": {
             "bits": 0,
             "subs": {"t1": 0, "t2": 0, "t3": 0},
             "direct": 0,
         },
     }
+    load_pause(Path(SETTINGS["db"]["pause"]))
     MSG_MAGIC = regex_compile(SETTINGS)
     log.info(f"{MSG_MAGIC}")
     load_csv(Path(SETTINGS["db"]["events"]))
