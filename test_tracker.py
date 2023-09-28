@@ -86,7 +86,7 @@ async def on_sub(sub: ChatSub):
 
 # this will be called whenever the !reply command is issued
 async def pause_command(cmd: ChatCommand):
-    if not cmd.user.mod:
+    if not (cmd.user.mod or cmd.user.name.lower() == SETTINGS["twitch"]["channel"].lower()):
         log.warning(f"Non-mod user {cmd.user.name} just tried to !tpause")
         return
     if LIVE_STATS["pause_start"] is not None:
@@ -97,7 +97,7 @@ async def pause_command(cmd: ChatCommand):
 
 
 async def resume_command(cmd: ChatCommand):
-    if not cmd.user.mod:
+    if not (cmd.user.mod or cmd.user.name.lower() == SETTINGS["twitch"]["channel"].lower()):
         log.warning(f"Non-mod user {cmd.user.name} just tried to !tresume")
         return
     if LIVE_STATS["pause_start"] is None:
