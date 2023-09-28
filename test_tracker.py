@@ -47,10 +47,10 @@ async def on_message(msg: ChatMessage):
         if msg.user.name.lower() == user.lower():
             match = regex.match(msg.text)
             if match:
-                log.info(f"in {msg.room.name}, {msg.user.name} sent {target}: {match['amount']}")
-                if match["type"] == "bits":
+                log.info(f"in {msg.room.name}, {match['user']} sent {target}: {match['amount']}")
+                if target == "bits":
                     LIVE_STATS["donos"]["bits"] += int(match["amount"])
-                elif match["type"] == "direct":
+                elif target == "direct":
                     LIVE_STATS["donos"]["direct"] += float(match["amount"])
                 append_csv(
                     Path(SETTINGS["db"]["events"]),
