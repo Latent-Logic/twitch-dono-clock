@@ -253,8 +253,9 @@ async def main(settings: dict):
     # there are more events, you can view them all in this documentation
 
     # you can directly register commands and their handlers
-    chat.register_command("tpause", pause_command)
-    chat.register_command("tresume", resume_command)
+    if settings["twitch"].get("enable_cmds", True):
+        chat.register_command("tpause", pause_command)
+        chat.register_command("tresume", resume_command)
 
     # we are done with our setup, lets start this bot up!
     chat.start()
