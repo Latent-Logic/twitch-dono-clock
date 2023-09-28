@@ -50,9 +50,9 @@ async def on_message(msg: ChatMessage):
                 log.info(f"in {msg.room.name}, {match['user']} sent {target}: {match['amount']}")
                 if target == "bits":
                     amount = int(match["amount"])
-                elif target == "direct":
+                elif target == "tips":
                     amount = float(match["amount"])
-                LIVE_STATS["donos"]["direct"] += amount
+                LIVE_STATS["donos"]["tips"] += amount
                 append_csv(
                     Path(SETTINGS["db"]["events"]),
                     ts=msg.sent_timestamp,
@@ -135,8 +135,8 @@ def load_csv(file_path: Path):
         for row in reader:
             if row["type"] == "bits":
                 LIVE_STATS["donos"]["bits"] += int(row["amount"])
-            elif row["type"] == "direct":
-                LIVE_STATS["donos"]["direct"] += float(row["amount"])
+            elif row["type"] in {"direct", "tips"}:
+                LIVE_STATS["donos"]["tips"] += float(row["amount"])
             elif row["type"].startswith("subs_"):
                 if row["type"].endswith("_t1"):
                     LIVE_STATS["donos"]["subs"]["t1"] += int(row["amount"])
@@ -160,7 +160,7 @@ def cal_minutes() -> float:
     minutes = 0
     donos = LIVE_STATS["donos"]
     minutes += donos["bits"] * SETTINGS["bits"]["min"]
-    minutes += donos["direct"] * SETTINGS["direct"]["min"]
+    minutes += donos["tips"] * SETTINGS["tips"]["min"]
     subs = donos["subs"]
     minutes += subs["t1"] * SETTINGS["subs"]["tier"]["t1"]["min"]
     minutes += subs["t2"] * SETTINGS["subs"]["tier"]["t2"]["min"]
@@ -172,7 +172,7 @@ def calc_dollars() -> float:
     dollars = 0
     donos = LIVE_STATS["donos"]
     dollars += donos["bits"] * SETTINGS["bits"]["money"]
-    dollars += donos["direct"] * SETTINGS["direct"]["money"]
+    dollars += donos["tips"] * SETTINGS["tips"]["money"]
     subs = donos["subs"]
     dollars += subs["t1"] * SETTINGS["subs"]["tier"]["t1"]["money"]
     dollars += subs["t2"] * SETTINGS["subs"]["tier"]["t2"]["money"]
@@ -205,7 +205,7 @@ def write_files():
     out_dir = Path(out_dict["dir"])
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / out_dict["bits"]).write_text(f'{LIVE_STATS["donos"]["bits"]}')
-    (out_dir / out_dict["direct"]).write_text(f'{LIVE_STATS["donos"]["direct"]:.02f}')
+    (out_dir / out_dict["tips"]).write_text(f'{LIVE_STATS["donos"]["tips"]:.02f}')
     (out_dir / out_dict["subs"]).write_text(
         str(LIVE_STATS["donos"]["subs"]["t1"] + LIVE_STATS["donos"]["subs"]["t2"] + LIVE_STATS["donos"]["subs"]["t3"])
     )
@@ -274,8 +274,8 @@ def regex_compile(settings: dict) -> List[Tuple[str, re.Pattern, str]]:
     msg_magic = []
     for user, obj in settings["bits"].get("msg", {}).items():
         msg_magic.append((user, re.compile(obj["regex"]), "bits"))
-    for user, obj in settings["direct"].get("msg", {}).items():
-        msg_magic.append((user, re.compile(obj["regex"]), "direct"))
+    for user, obj in settings["tips"].get("msg", {}).items():
+        msg_magic.append((user, re.compile(obj["regex"]), "tips"))
     return msg_magic
 
 
@@ -288,7 +288,7 @@ if __name__ == "__main__":
         "donos": {
             "bits": 0,
             "subs": {"t1": 0, "t2": 0, "t3": 0},
-            "direct": 0,
+            "tips": 0,
         },
     }
     load_pause(Path(SETTINGS["db"]["pause"]))

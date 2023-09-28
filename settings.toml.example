@@ -17,7 +17,7 @@ pause = "db/pause.txt"  # File to note how long stream has been paused
 dir = "out"  # Directory to write the output files
 bits = "bits.txt"
 subs = "subs.txt"
-direct = "direct.txt"
+tips = "tips.txt"
 countdown = "countdown.txt"
 money = "money.txt"
 
@@ -39,10 +39,10 @@ t1 = {min = 5, money = 2.5}
 t2 = {min = 10, money = 5}
 t3 = {min = 25, money = 10}
 
-[direct]
+[tips]
 min = 2
 money = 1
 
-[direct.msg.StreamElements]
+[tips.msg.StreamElements]
 # Example: StreamElements: User2 just tipped $25.00 emoteHeart
 regex = ".*(?P<user>[^ ]*) just tipped \\$(?P<amount>[^ ]*) emoteHeart.*"
