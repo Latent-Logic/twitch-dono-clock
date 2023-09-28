@@ -1,0 +1,48 @@
+[twitch]
+app_id = "<>"  # Twitch App ID
+app_secret = "<>"  # Twitch App Secret
+channel = "mychannel"  # Twitch channel to listen to
+auth_url = "http://localhost:17563/oauth2/authorize"  # Twitch OAuth2 authorization URL
+user_token_file = "usr_token.toml"  # Twitch user auth file
+
+[start]
+minutes = 60  # How many minutes to have on the clock at the beginning
+time = "2023-09-27T12:00:00-07:00"
+
+[db]
+events = "db/events.csv"  # File to store every event
+pause = "db/pause.txt"  # File to note how long stream has been paused
+
+[output]
+dir = "out"  # Directory to write the output files
+bits = "bits.txt"
+subs = "subs.txt"
+direct = "direct.txt"
+countdown = "countdown.txt"
+money = "money.txt"
+
+[bits]
+min = 0.02
+money = 0.01
+[bits.msg.SoundAlerts]
+# Example: SoundAlerts: User1 played Modem for 150 Bits
+regex = "(?P<user>[^ ]*) played (?P<alert>.*) for (?P<amount>[^ ]*) Bits.*"
+
+[subs]
+[subs.plan]
+Prime = "t1"
+1000 = "t1"
+2000 = "t2"
+3000 = "t3"
+[subs.tier]
+t1 = {min = 5, money = 2.5}
+t2 = {min = 10, money = 5}
+t3 = {min = 25, money = 10}
+
+[direct]
+min = 2
+money = 1
+
+[direct.msg.StreamElements]
+# Example: StreamElements: User2 just tipped $25.00 emoteHeart
+regex = ".*(?P<user>[^ ]*) just tipped \\$(?P<amount>[^ ]*) emoteHeart.*"
