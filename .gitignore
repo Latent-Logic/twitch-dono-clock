@@ -1,5 +1,6 @@
 # Don't include the settings file with secrets
 settings.toml
+usr_token.toml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
