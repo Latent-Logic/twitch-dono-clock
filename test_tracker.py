@@ -85,6 +85,9 @@ async def on_sub(sub: ChatSub):
 
 # this will be called whenever the !reply command is issued
 async def pause_command(cmd: ChatCommand):
+    if not cmd.user.mod:
+        log.warning(f"Non-mod user {cmd.user.name} just tried to !tpause")
+        return
     if LIVE_STATS["pause_start"] is not None:
         await cmd.reply(f"Pause already started at {LIVE_STATS['pause_start']}")
     else:
@@ -93,16 +96,20 @@ async def pause_command(cmd: ChatCommand):
 
 
 async def resume_command(cmd: ChatCommand):
+    if not cmd.user.mod:
+        log.warning(f"Non-mod user {cmd.user.name} just tried to !tresume")
+        return
     if LIVE_STATS["pause_start"] is None:
         await cmd.reply("Pause not started")
     else:
-        LIVE_STATS["pause_min"] = (datetime.now(tz=timezone.utc) - LIVE_STATS["pause_start"]).total_seconds() / 60
+        LIVE_STATS["pause_start"] = None
+        LIVE_STATS["pause_min"] += (datetime.now(tz=timezone.utc) - LIVE_STATS["pause_start"]).total_seconds() / 60
         await cmd.reply(
             f"Pause resumed with an addition of "
-            f"{(datetime.now(tz=timezone.utc) - LIVE_STATS['pause_start']).total_seconds() / 60} minutes for a total "
-            f" of {LIVE_STATS['pause_min']} minutes"
+            f"{(datetime.now(tz=timezone.utc) - LIVE_STATS['pause_start']).total_seconds() / 60:.02f} "
+            f"minutes for a total of {LIVE_STATS['pause_min']:.02f} minutes"
         )
-        Path(SETTINGS["db"]["pause"]).write_text(f"{LIVE_STATS['pause_min']}")
+        Path(SETTINGS["db"]["pause"]).write_text(f"{LIVE_STATS['pause_min']:.02f}")
 
 
 def load_pause(file_path: Path):
@@ -174,14 +181,22 @@ def calc_dollars() -> float:
 
 def calc_timer() -> str:
     global LIVE_STATS
-    time_so_far = datetime.now(tz=timezone.utc) - START_TIME
+    if LIVE_STATS["pause_start"] is not None:
+        cur_time: datetime = LIVE_STATS["pause_start"]
+    else:
+        cur_time = datetime.now(tz=timezone.utc)
+    time_so_far = cur_time - START_TIME
     corrected_tsf = time_so_far - timedelta(minutes=LIVE_STATS["pause_min"])
     accrued_time = timedelta(minutes=cal_minutes())
     remaining = accrued_time - corrected_tsf
     hours = int(remaining.total_seconds() / 60 / 60)
     minutes = int(remaining.total_seconds() / 60) % 60
     seconds = int(remaining.total_seconds()) % 60
-    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    if LIVE_STATS["pause_start"] is not None:
+        return f"PAUSED: {time_str}"
+    else:
+        return time_str
 
 
 def write_files():
