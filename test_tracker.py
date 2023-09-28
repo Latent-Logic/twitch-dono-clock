@@ -1,8 +1,10 @@
 """Twitch donothon clock based on reading chat"""
 import asyncio
+import csv
 import logging
-from datetime.datetime import fromisoformat
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Optional
 
 import toml
 from twitchAPI.chat import Chat, ChatCommand, ChatMessage, ChatSub, EventData
@@ -12,10 +14,9 @@ from twitchAPI.type import AuthScope, ChatEvent, TwitchAPIException
 
 # "chat:read chat:edit"
 USER_SCOPE = [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT]
+CSV_COLUMNS = ["time", "user", "target", "type", "amount"]
 log = logging.getLogger("test_tracker")
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s\t%(levelname)s\t%(name)s\t%(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s\t%(levelname)s\t%(name)s\t%(message)s")
 
 
 # this will be called when the event READY is triggered, which will be on bot start
@@ -29,18 +30,36 @@ async def on_ready(ready_event: EventData):
 
 # this will be called whenever a message in a channel was send by either the bot OR another user
 async def on_message(msg: ChatMessage):
-    log.info(f"in {msg.room.name}, {msg.user.name} said: {msg.text}")
     log.debug(f"{msg._parsed=}")
+    if msg.bits:
+        log.info(f"in {msg.room.name}, {msg.user.name} sent: {msg.bits}")
+        append_csv(
+            Path(SETTINGS["db"]["events"]),
+            ts=msg.sent_timestamp,
+            user=msg.user.name,
+            target=None,
+            type="bits",
+            amount=msg.bits,
+        )
 
 
 # this will be called whenever someone subscribes to a channel
 async def on_sub(sub: ChatSub):
     log.info(
-        f"New subscription in {sub.room.name}:\\n"
-        f"  Type: {sub.sub_plan}\\n"
-        f"  Message: {sub.sub_message}"
+        f"New subscription in {sub.room.name}:"
+        f"\tType: {sub.sub_plan}\\n"
+        f'\tFrom: {sub._parsed["tags"]["display-name"]}'
+        f'\tTo: {sub._parsed["tags"].get("msg-param-recipient-user-name", sub._parsed["tags"]["display-name"])}'
     )
     log.debug(f"{sub._parsed=}")
+    append_csv(
+        Path(SETTINGS["db"]["events"]),
+        ts=sub._parsed["tags"]["tmi-sent-ts"],
+        user=sub._parsed["tags"]["display-name"],
+        target=sub._parsed["tags"].get("msg-param-recipient-user-name"),
+        type=f"subs_{SETTINGS['subs']['plan'][sub.sub_plan]}",
+        amount=1,
+    )
 
 
 # this will be called whenever the !reply command is issued
@@ -51,12 +70,99 @@ async def pause_command(cmd: ChatCommand):
         await cmd.reply(f"{cmd.user.name}: {cmd.parameter}")
 
 
+# Load CSV log file for refreshing stats
+def load_csv(file_path: Path):
+    if not file_path.is_file():
+        log.warning(f"No CSV file found at {file_path}, creating one")
+        file_path.parent.mkdir(exist_ok=True, parents=True)
+        file_path.write_text(",".join(CSV_COLUMNS))
+        return
+    with file_path.open("r") as f:
+        reader = csv.DictReader(f, delimiter=",")
+        assert reader.fieldnames == CSV_COLUMNS
+        for row in reader:
+            if row["type"] == "bits":
+                LIVE_STATS["donos"]["bits"] += int(row["amount"])
+            elif row["type"] == "direct":
+                LIVE_STATS["donos"]["direct"] += float(row["amount"])
+            elif row["type"].startswith("subs_"):
+                if row["type"].endswith("_t1"):
+                    LIVE_STATS["donos"]["subs"]["t1"] += int(row["amount"])
+                elif row["type"].endswith("_t2"):
+                    LIVE_STATS["donos"]["subs"]["t2"] += int(row["amount"])
+                elif row["type"].endswith("_t3"):
+                    LIVE_STATS["donos"]["subs"]["t3"] += int(row["amount"])
+    log.info(f"Loaded CSV file and got: {LIVE_STATS}")
+
+
+def append_csv(file_path: Path, ts: int, user: str, type: str, amount: float, target: Optional[str] = None):
+    if not file_path.is_file():
+        raise FileNotFoundError(f"No CSV file found at {file_path}, Should have been created earlier?!?")
+    with file_path.open("a") as f:
+        csv.DictWriter(f, CSV_COLUMNS).writerow(
+            {"time": ts, "user": user, "target": target or "", "type": type, "amount": amount}
+        )
+
+
+def cal_minutes() -> float:
+    minutes = 0
+    donos = LIVE_STATS["donos"]
+    minutes += donos["bits"] * SETTINGS["bits"]["min"]
+    minutes += donos["direct"] * SETTINGS["direct"]["min"]
+    subs = donos["subs"]
+    minutes += subs["t1"] * SETTINGS["subs"]["tier"]["t1"]["min"]
+    minutes += subs["t2"] * SETTINGS["subs"]["tier"]["t2"]["min"]
+    minutes += subs["t3"] * SETTINGS["subs"]["tier"]["t3"]["min"]
+    return minutes
+
+
+def calc_dollars() -> float:
+    dollars = 0
+    donos = LIVE_STATS["donos"]
+    dollars += donos["bits"] * SETTINGS["bits"]["money"]
+    dollars += donos["direct"] * SETTINGS["direct"]["money"]
+    subs = donos["subs"]
+    dollars += subs["t1"] * SETTINGS["subs"]["tier"]["t1"]["money"]
+    dollars += subs["t2"] * SETTINGS["subs"]["tier"]["t2"]["money"]
+    dollars += subs["t3"] * SETTINGS["subs"]["tier"]["t3"]["money"]
+    return dollars
+
+
+def calc_timer() -> str:
+    global LIVE_STATS
+    time_so_far = datetime.now(tz=UTC) - START_TIME
+    corrected_tsf = time_so_far - timedelta(minutes=LIVE_STATS["pause_min"])
+    accrued_time = timedelta(minutes=cal_minutes())
+    remaining = accrued_time - corrected_tsf
+    hours = int(remaining.total_seconds() / 60 / 60)
+    minutes = int(remaining.total_seconds() / 60) % 60
+    seconds = int(remaining.total_seconds()) % 60
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+def write_files():
+    out_dict = SETTINGS["output"]
+    out_dir = Path(out_dict["dir"])
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / out_dict["bits"]).write_text(f'{LIVE_STATS["donos"]["bits"]}')
+    (out_dir / out_dict["direct"]).write_text(f'{LIVE_STATS["donos"]["direct"]:.02f}')
+    (out_dir / out_dict["subs"]).write_text(
+        str(LIVE_STATS["donos"]["subs"]["t1"] + LIVE_STATS["donos"]["subs"]["t2"] + LIVE_STATS["donos"]["subs"]["t3"])
+    )
+    (out_dir / out_dict["countdown"]).write_text(calc_timer())
+    (out_dir / out_dict["money"]).write_text(f"{calc_dollars():0.02f}")
+
+
+async def write_every_second():
+    while True:
+        await asyncio.sleep(1)
+        write_files()
+
+
 # this is where we set up the bot
 async def main(settings: dict):
     # set up twitch api instance and add user authentication with some scopes
-    twitch = await Twitch(
-        settings["twitch"]["app_id"], settings["twitch"]["app_secret"]
-    )
+    twitch = await Twitch(settings["twitch"]["app_id"], settings["twitch"]["app_secret"])
     usr_token_file = Path(settings["twitch"]["user_token_file"])
     if usr_token_file.is_file():
         user_auth = toml.load(usr_token_file)
@@ -66,9 +172,7 @@ async def main(settings: dict):
     else:
         auth = UserAuthenticator(twitch, USER_SCOPE, url=settings["twitch"]["auth_url"])
         token, refresh_token = await auth.authenticate(browser_name="google-chrome")
-        usr_token_file.write_text(
-            toml.dumps({"token": token, "refresh_token": refresh_token})
-        )
+        usr_token_file.write_text(toml.dumps({"token": token, "refresh_token": refresh_token}))
     try:
         await twitch.set_user_authentication(token, USER_SCOPE, refresh_token)
     except TwitchAPIException:
@@ -94,9 +198,11 @@ async def main(settings: dict):
     # we are done with our setup, lets start this bot up!
     chat.start()
 
-    # lets run till we press enter in the console
     try:
-        input("press ENTER to stop\n")
+        try:
+            await write_every_second()
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            pass
     finally:
         # now we can close the chat bot and the twitch api client
         chat.stop()
@@ -105,6 +211,15 @@ async def main(settings: dict):
 
 if __name__ == "__main__":
     SETTINGS = toml.load("settings.toml")
-    START_TIME = fromisoformat(SETTINGS["start"]["time"])
+    START_TIME = datetime.fromisoformat(SETTINGS["start"]["time"])
+    LIVE_STATS = {
+        "pause_min": 0,
+        "donos": {
+            "bits": 0,
+            "subs": {"t1": 0, "t2": 0, "t3": 0},
+            "direct": 0,
+        },
+    }
+    load_csv(Path(SETTINGS["db"]["events"]))
 
     asyncio.run(main(SETTINGS))

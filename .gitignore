@@ -2,6 +2,10 @@
 settings.toml
 usr_token.toml
 
+# Ignore record directories
+db/
+out/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
