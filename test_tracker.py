@@ -49,16 +49,17 @@ async def on_message(msg: ChatMessage):
             if match:
                 log.info(f"in {msg.room.name}, {match['user']} sent {target}: {match['amount']}")
                 if target == "bits":
-                    LIVE_STATS["donos"]["bits"] += int(match["amount"])
+                    amount = int(match["amount"])
                 elif target == "direct":
-                    LIVE_STATS["donos"]["direct"] += float(match["amount"])
+                    amount = float(match["amount"])
+                LIVE_STATS["donos"]["direct"] += amount
                 append_csv(
                     Path(SETTINGS["db"]["events"]),
                     ts=msg.sent_timestamp,
                     user=match["user"],
                     target=None,
                     type=target,
-                    amount=float(match["amount"]),
+                    amount=amount,
                 )
 
 
