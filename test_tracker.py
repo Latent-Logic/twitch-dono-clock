@@ -3,7 +3,7 @@ import asyncio
 import csv
 import logging
 import re
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -88,7 +88,7 @@ async def pause_command(cmd: ChatCommand):
     if LIVE_STATS["pause_start"] is not None:
         await cmd.reply(f"Pause already started at {LIVE_STATS['pause_start']}")
     else:
-        LIVE_STATS["pause_start"] = datetime.now(tz=UTC)
+        LIVE_STATS["pause_start"] = datetime.now(tz=timezone.utc)
         await cmd.reply("Pause started")
 
 
@@ -96,10 +96,10 @@ async def resume_command(cmd: ChatCommand):
     if LIVE_STATS["pause_start"] is None:
         await cmd.reply("Pause not started")
     else:
-        LIVE_STATS["pause_min"] = (datetime.now(tz=UTC) - LIVE_STATS["pause_start"]).total_seconds() / 60
+        LIVE_STATS["pause_min"] = (datetime.now(tz=timezone.utc) - LIVE_STATS["pause_start"]).total_seconds() / 60
         await cmd.reply(
             f"Pause resumed with an addition of "
-            f"{(datetime.now(tz=UTC) - LIVE_STATS['pause_start']).total_seconds() / 60} minutes for a total "
+            f"{(datetime.now(tz=timezone.utc) - LIVE_STATS['pause_start']).total_seconds() / 60} minutes for a total "
             f" of {LIVE_STATS['pause_min']} minutes"
         )
         Path(SETTINGS["db"]["pause"]).write_text(f"{LIVE_STATS['pause_min']}")
@@ -174,7 +174,7 @@ def calc_dollars() -> float:
 
 def calc_timer() -> str:
     global LIVE_STATS
-    time_so_far = datetime.now(tz=UTC) - START_TIME
+    time_so_far = datetime.now(tz=timezone.utc) - START_TIME
     corrected_tsf = time_so_far - timedelta(minutes=LIVE_STATS["pause_min"])
     accrued_time = timedelta(minutes=cal_minutes())
     remaining = accrued_time - corrected_tsf
