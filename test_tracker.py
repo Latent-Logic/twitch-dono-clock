@@ -34,6 +34,7 @@ async def on_message(msg: ChatMessage):
     log.debug(f"{msg.user.name=} {msg._parsed=}")
     if msg.bits:
         log.info(f"in {msg.room.name}, {msg.user.name} sent: {msg.bits}")
+        LIVE_STATS["bits"] += int(msg.bits)
         append_csv(
             Path(SETTINGS["db"]["events"]),
             ts=msg.sent_timestamp,
@@ -47,6 +48,10 @@ async def on_message(msg: ChatMessage):
             match = regex.match(msg.text)
             if match:
                 log.info(f"in {msg.room.name}, {msg.user.name} sent {match['type']}: {match['amount']}")
+                if match["type"] == "bits":
+                    LIVE_STATS["bits"] += int(match["amount"])
+                elif match["type"] == "direct":
+                    LIVE_STATS["direct"] += float(match["amount"])
                 append_csv(
                     Path(SETTINGS["db"]["events"]),
                     ts=msg.sent_timestamp,
@@ -66,12 +71,14 @@ async def on_sub(sub: ChatSub):
         f'\tTo: {sub._parsed["tags"].get("msg-param-recipient-user-name", sub._parsed["tags"]["display-name"])}'
     )
     log.debug(f"{sub._parsed=}")
+    tier = SETTINGS["subs"]["plan"][sub.sub_plan]
+    LIVE_STATS["subs"][tier] += 1
     append_csv(
         Path(SETTINGS["db"]["events"]),
         ts=sub._parsed["tags"]["tmi-sent-ts"],
         user=sub._parsed["tags"]["display-name"],
         target=sub._parsed["tags"].get("msg-param-recipient-user-name"),
-        type=f"subs_{SETTINGS['subs']['plan'][sub.sub_plan]}",
+        type=f"subs_{tier}",
         amount=1,
     )
 
