@@ -103,13 +103,13 @@ async def resume_command(cmd: ChatCommand):
     if LIVE_STATS["pause_start"] is None:
         await cmd.reply("Pause not started")
     else:
-        LIVE_STATS["pause_start"] = None
         LIVE_STATS["pause_min"] += (datetime.now(tz=timezone.utc) - LIVE_STATS["pause_start"]).total_seconds() / 60
         await cmd.reply(
             f"Pause resumed with an addition of "
             f"{(datetime.now(tz=timezone.utc) - LIVE_STATS['pause_start']).total_seconds() / 60:.02f} "
             f"minutes for a total of {LIVE_STATS['pause_min']:.02f} minutes"
         )
+        LIVE_STATS["pause_start"] = None
         Path(SETTINGS["db"]["pause"]).write_text(f"{LIVE_STATS['pause_min']:.02f}")
 
 
