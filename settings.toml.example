@@ -20,7 +20,7 @@ bits = "bits.txt"
 subs = "subs.txt"
 tips = "tips.txt"
 countdown = "countdown.txt"
-money = "money.txt"
+total_value = "total_value.txt"
 
 [bits]
 min = 0.02

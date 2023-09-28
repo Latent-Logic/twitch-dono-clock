@@ -210,7 +210,7 @@ def write_files():
         str(LIVE_STATS["donos"]["subs"]["t1"] + LIVE_STATS["donos"]["subs"]["t2"] + LIVE_STATS["donos"]["subs"]["t3"])
     )
     (out_dir / out_dict["countdown"]).write_text(calc_timer())
-    (out_dir / out_dict["money"]).write_text(f"{calc_dollars():0.02f}")
+    (out_dir / out_dict["total_value"]).write_text(f"{calc_dollars():0.02f}")
 
 
 async def write_every_second():
