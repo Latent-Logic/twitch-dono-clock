@@ -2,9 +2,10 @@
 import asyncio
 import csv
 import logging
+import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional, Tuple
 
 import toml
 from twitchAPI.chat import Chat, ChatCommand, ChatMessage, ChatSub, EventData
@@ -30,7 +31,7 @@ async def on_ready(ready_event: EventData):
 
 # this will be called whenever a message in a channel was send by either the bot OR another user
 async def on_message(msg: ChatMessage):
-    log.debug(f"{msg._parsed=}")
+    log.debug(f"{msg.user.name=} {msg._parsed=}")
     if msg.bits:
         log.info(f"in {msg.room.name}, {msg.user.name} sent: {msg.bits}")
         append_csv(
@@ -41,6 +42,19 @@ async def on_message(msg: ChatMessage):
             type="bits",
             amount=msg.bits,
         )
+    for user, regex, target in MSG_MAGIC:
+        if msg.user.name.lower() == user.lower():
+            match = regex.match(msg.text)
+            if match:
+                log.info(f"in {msg.room.name}, {msg.user.name} sent {match['type']}: {match['amount']}")
+                append_csv(
+                    Path(SETTINGS["db"]["events"]),
+                    ts=msg.sent_timestamp,
+                    user=match["user"],
+                    target=None,
+                    type=target,
+                    amount=float(match["amount"]),
+                )
 
 
 # this will be called whenever someone subscribes to a channel
@@ -209,6 +223,15 @@ async def main(settings: dict):
         await twitch.close()
 
 
+def regex_compile(settings: dict) -> List[Tuple[str, re.Pattern, str]]:
+    msg_magic = []
+    for user, obj in settings["bits"].get("msg", {}).items():
+        msg_magic.append((user, re.compile(obj["regex"]), "bits"))
+    for user, obj in settings["direct"].get("msg", {}).items():
+        msg_magic.append((user, re.compile(obj["regex"]), "direct"))
+    return msg_magic
+
+
 if __name__ == "__main__":
     SETTINGS = toml.load("settings.toml")
     START_TIME = datetime.fromisoformat(SETTINGS["start"]["time"])
@@ -220,6 +243,8 @@ if __name__ == "__main__":
             "direct": 0,
         },
     }
+    MSG_MAGIC = regex_compile(SETTINGS)
+    log.info(f"{MSG_MAGIC}")
     load_csv(Path(SETTINGS["db"]["events"]))
 
     asyncio.run(main(SETTINGS))
