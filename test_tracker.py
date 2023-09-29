@@ -86,33 +86,46 @@ async def on_sub(sub: ChatSub):
 
 # this will be called whenever the !reply command is issued
 async def pause_command(cmd: ChatCommand):
+    fmt_dict = {
+        "user": cmd.user.name,
+        "cmd": "tpause",
+        "pause_min": LIVE_STATS["pause_min"],
+        "pause_start": LIVE_STATS["pause_start"],
+    }
     if not (cmd.user.mod or cmd.user.name.lower() == SETTINGS["twitch"]["channel"].lower()):
-        log.warning(f"Non-mod user {cmd.user.name} just tried to !tpause")
+        log.warning(SETTINGS["fmt"]["cmd_blocked"].format(**fmt_dict))
         return
     if LIVE_STATS["pause_start"] is not None:
-        await cmd.reply(f"Pause already started at {LIVE_STATS['pause_start']}")
+        await cmd.reply(SETTINGS["fmt"]["pause_failure"].format(**fmt_dict))
     else:
         pause_start = datetime.now(tz=timezone.utc)
         LIVE_STATS["pause_start"] = pause_start
+        fmt_dict["pause_start"] = pause_start
         Path(SETTINGS["db"]["pause"]).write_text(f"{LIVE_STATS['pause_min']:.02f};{pause_start.isoformat()}")
-        await cmd.reply("Pause started")
+        await cmd.reply(SETTINGS["fmt"]["pause_success"].format(**fmt_dict))
 
 
 async def resume_command(cmd: ChatCommand):
+    fmt_dict = {
+        "user": cmd.user.name,
+        "cmd": "tresume",
+        "pause_min": LIVE_STATS["pause_min"],
+        "pause_start": LIVE_STATS["pause_start"],
+    }
     if not (cmd.user.mod or cmd.user.name.lower() == SETTINGS["twitch"]["channel"].lower()):
-        log.warning(f"Non-mod user {cmd.user.name} just tried to !tresume")
+        log.warning(SETTINGS["fmt"]["cmd_blocked"].format(**fmt_dict))
         return
     if LIVE_STATS["pause_start"] is None:
-        await cmd.reply("Pause not started")
+        await cmd.reply(SETTINGS["fmt"]["pause_failure"].format(**fmt_dict))
     else:
-        LIVE_STATS["pause_min"] += (datetime.now(tz=timezone.utc) - LIVE_STATS["pause_start"]).total_seconds() / 60
-        await cmd.reply(
-            f"Pause resumed with an addition of "
-            f"{(datetime.now(tz=timezone.utc) - LIVE_STATS['pause_start']).total_seconds() / 60:.02f} "
-            f"minutes for a total of {LIVE_STATS['pause_min']:.02f} minutes"
-        )
+        added_min = (datetime.now(tz=timezone.utc) - LIVE_STATS["pause_start"]).total_seconds() / 60
+        LIVE_STATS["pause_min"] += added_min
+        fmt_dict["pause_min"] = LIVE_STATS["pause_min"]
+        fmt_dict["added_min"] = added_min
+        fmt_dict["pause_start"] = None
         LIVE_STATS["pause_start"] = None
         Path(SETTINGS["db"]["pause"]).write_text(f"{LIVE_STATS['pause_min']:.02f}")
+        await cmd.reply(SETTINGS["fmt"]["pause_success"].format(**fmt_dict))
 
 
 def load_pause(file_path: Path):
@@ -203,7 +216,7 @@ def calc_timer() -> str:
     seconds = int(remaining.total_seconds()) % 60
     time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
     if LIVE_STATS["pause_start"] is not None:
-        pause_format = SETTINGS["output"].get("countdown_pause_format", "{clock} PAUSED")
+        pause_format = SETTINGS["fmt"]["countdown_pause"]
         return pause_format.format(clock=time_str)
     else:
         return time_str
