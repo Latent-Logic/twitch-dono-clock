@@ -20,6 +20,7 @@ bits = "bits.txt"
 subs = "subs.txt"
 tips = "tips.txt"
 countdown = "countdown.txt"
+countdown_pause_format = "{clock} PAUSED"
 total_value = "total_value.txt"
 
 [bits]

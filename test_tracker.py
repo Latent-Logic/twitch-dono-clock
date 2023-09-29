@@ -203,7 +203,8 @@ def calc_timer() -> str:
     seconds = int(remaining.total_seconds()) % 60
     time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
     if LIVE_STATS["pause_start"] is not None:
-        return f"PAUSED: {time_str}"
+        pause_format = SETTINGS["output"].get("countdown_pause_format", "{clock} PAUSED")
+        return pause_format.format(clock=time_str)
     else:
         return time_str
 
