@@ -92,7 +92,9 @@ async def pause_command(cmd: ChatCommand):
     if LIVE_STATS["pause_start"] is not None:
         await cmd.reply(f"Pause already started at {LIVE_STATS['pause_start']}")
     else:
-        LIVE_STATS["pause_start"] = datetime.now(tz=timezone.utc)
+        pause_start = datetime.now(tz=timezone.utc)
+        LIVE_STATS["pause_start"] = pause_start
+        Path(SETTINGS["db"]["pause"]).write_text(f"{LIVE_STATS['pause_min']:.02f};{pause_start.isoformat()}")
         await cmd.reply("Pause started")
 
 
@@ -119,7 +121,13 @@ def load_pause(file_path: Path):
         file_path.parent.mkdir(exist_ok=True, parents=True)
         file_path.write_text("0.0")
         return
-    LIVE_STATS["pause_min"] = float(file_path.read_text())
+    raw = file_path.read_text()
+    if ";" in raw:
+        time, pause_time = raw.strip().split(";", maxsplit=1)
+        LIVE_STATS["pause_start"] = datetime.fromisoformat(pause_time)
+    else:
+        time = raw
+    LIVE_STATS["pause_min"] = float(time)
 
 
 # Load CSV log file for refreshing stats
