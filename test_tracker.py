@@ -102,6 +102,8 @@ async def pause_command(cmd: ChatCommand):
         LIVE_STATS["pause_start"] = pause_start
         fmt_dict["pause_start"] = pause_start
         Path(SETTINGS["db"]["pause"]).write_text(f"{LIVE_STATS['pause_min']:.02f};{pause_start.isoformat()}")
+        with open(SETTINGS["db"]["pause_log"], "a") as f:
+            f.write(f"{pause_start.isoformat()}\t{LIVE_STATS['pause_min']:.2f}\tPause Started\n")
         await cmd.reply(SETTINGS["fmt"]["tpause_success"].format(**fmt_dict))
 
 
@@ -118,13 +120,16 @@ async def resume_command(cmd: ChatCommand):
     if LIVE_STATS["pause_start"] is None:
         await cmd.reply(SETTINGS["fmt"]["tresume_failure"].format(**fmt_dict))
     else:
-        added_min = (datetime.now(tz=timezone.utc) - LIVE_STATS["pause_start"]).total_seconds() / 60
+        now = datetime.now(tz=timezone.utc)
+        added_min = (now - LIVE_STATS["pause_start"]).total_seconds() / 60
         LIVE_STATS["pause_min"] += added_min
         fmt_dict["pause_min"] = LIVE_STATS["pause_min"]
         fmt_dict["added_min"] = added_min
         fmt_dict["pause_start"] = None
         LIVE_STATS["pause_start"] = None
         Path(SETTINGS["db"]["pause"]).write_text(f"{LIVE_STATS['pause_min']:.02f}")
+        with open(SETTINGS["db"]["pause_log"], "a") as f:
+            f.write(f"{now.isoformat()}\t{LIVE_STATS['pause_min']:.2f}\tPause Ended & added {added_min:.2f}\n")
         await cmd.reply(SETTINGS["fmt"]["tresume_success"].format(**fmt_dict))
 
 
