@@ -128,6 +128,35 @@ async def resume_command(cmd: ChatCommand):
         await cmd.reply(SETTINGS["fmt"]["tresume_success"].format(**fmt_dict))
 
 
+async def raised_command(cmd: ChatCommand):
+    fmt_dict = {
+        "user": cmd.user.name,
+        "cmd": "traised",
+    }
+    if not (cmd.user.mod or cmd.user.name.lower() == SETTINGS["twitch"]["channel"].lower()):
+        log.warning(SETTINGS["fmt"]["cmd_blocked"].format(**fmt_dict))
+        return
+    so_far_total_min = calc_time_so_far().total_seconds() / 60
+    fmt_dict = {
+        **fmt_dict,
+        "so_far_total_min": so_far_total_min,
+        "so_far_hrs": so_far_total_min // 60,
+        "so_far_min": so_far_total_min % 60,
+        "min_paid_for": calc_minutes(),
+        "total_value": calc_dollars(),
+        "countdown": calc_timer(),
+        "bits": LIVE_STATS["donos"]["bits"],
+        "tips": LIVE_STATS["donos"]["tips"],
+        "subs": sum(LIVE_STATS["donos"]["subs"].values()),
+        "subs_t1": LIVE_STATS["donos"]["subs"]["t1"],
+        "subs_t2": LIVE_STATS["donos"]["subs"]["t2"],
+        "subs_t3": LIVE_STATS["donos"]["subs"]["t3"],
+        "pause_min": LIVE_STATS["pause_min"],
+        "pause_start": LIVE_STATS["pause_start"] or "Not Currently Paused",
+    }
+    await cmd.reply(SETTINGS["fmt"]["traised_success"].format(**fmt_dict))
+
+
 def load_pause(file_path: Path):
     if not file_path.is_file():
         log.warning(f"No pause file found at {file_path}, creating one")
@@ -177,7 +206,7 @@ def append_csv(file_path: Path, ts: int, user: str, type: str, amount: float, ta
         )
 
 
-def cal_minutes() -> float:
+def calc_minutes() -> float:
     minutes = 0
     donos = LIVE_STATS["donos"]
     minutes += donos["bits"] * SETTINGS["bits"]["min"]
@@ -201,16 +230,20 @@ def calc_dollars() -> float:
     return dollars
 
 
-def calc_timer() -> str:
-    global LIVE_STATS
+def calc_time_so_far() -> timedelta:
     if LIVE_STATS["pause_start"] is not None:
         cur_time: datetime = LIVE_STATS["pause_start"]
     else:
         cur_time = datetime.now(tz=timezone.utc)
     time_so_far = cur_time - START_TIME
     corrected_tsf = time_so_far - timedelta(minutes=LIVE_STATS["pause_min"])
-    accrued_time = timedelta(minutes=cal_minutes())
-    remaining = accrued_time - corrected_tsf
+    return corrected_tsf
+
+
+def calc_timer() -> str:
+    global LIVE_STATS
+    accrued_time = timedelta(minutes=calc_minutes())
+    remaining = accrued_time - calc_time_so_far()
     hours = int(remaining.total_seconds() / 60 / 60)
     minutes = int(remaining.total_seconds() / 60) % 60
     seconds = int(remaining.total_seconds()) % 60
@@ -278,6 +311,7 @@ async def main(settings: dict):
     if settings["twitch"].get("enable_cmds", True):
         chat.register_command("tpause", pause_command)
         chat.register_command("tresume", resume_command)
+        chat.register_command("traised", raised_command)
 
     # we are done with our setup, lets start this bot up!
     chat.start()
