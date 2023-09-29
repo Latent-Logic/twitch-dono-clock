@@ -96,13 +96,13 @@ async def pause_command(cmd: ChatCommand):
         log.warning(SETTINGS["fmt"]["cmd_blocked"].format(**fmt_dict))
         return
     if LIVE_STATS["pause_start"] is not None:
-        await cmd.reply(SETTINGS["fmt"]["pause_failure"].format(**fmt_dict))
+        await cmd.reply(SETTINGS["fmt"]["tpause_failure"].format(**fmt_dict))
     else:
         pause_start = datetime.now(tz=timezone.utc)
         LIVE_STATS["pause_start"] = pause_start
         fmt_dict["pause_start"] = pause_start
         Path(SETTINGS["db"]["pause"]).write_text(f"{LIVE_STATS['pause_min']:.02f};{pause_start.isoformat()}")
-        await cmd.reply(SETTINGS["fmt"]["pause_success"].format(**fmt_dict))
+        await cmd.reply(SETTINGS["fmt"]["tpause_success"].format(**fmt_dict))
 
 
 async def resume_command(cmd: ChatCommand):
@@ -116,7 +116,7 @@ async def resume_command(cmd: ChatCommand):
         log.warning(SETTINGS["fmt"]["cmd_blocked"].format(**fmt_dict))
         return
     if LIVE_STATS["pause_start"] is None:
-        await cmd.reply(SETTINGS["fmt"]["pause_failure"].format(**fmt_dict))
+        await cmd.reply(SETTINGS["fmt"]["tresume_failure"].format(**fmt_dict))
     else:
         added_min = (datetime.now(tz=timezone.utc) - LIVE_STATS["pause_start"]).total_seconds() / 60
         LIVE_STATS["pause_min"] += added_min
@@ -125,7 +125,7 @@ async def resume_command(cmd: ChatCommand):
         fmt_dict["pause_start"] = None
         LIVE_STATS["pause_start"] = None
         Path(SETTINGS["db"]["pause"]).write_text(f"{LIVE_STATS['pause_min']:.02f}")
-        await cmd.reply(SETTINGS["fmt"]["pause_success"].format(**fmt_dict))
+        await cmd.reply(SETTINGS["fmt"]["tresume_success"].format(**fmt_dict))
 
 
 def load_pause(file_path: Path):
