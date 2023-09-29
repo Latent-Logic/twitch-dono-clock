@@ -52,7 +52,7 @@ async def on_message(msg: ChatMessage):
                     amount = int(match["amount"])
                 elif target == "tips":
                     amount = float(match["amount"])
-                LIVE_STATS["donos"]["tips"] += amount
+                LIVE_STATS["donos"][target] += amount
                 append_csv(
                     Path(SETTINGS["db"]["events"]),
                     ts=msg.sent_timestamp,
