@@ -104,6 +104,7 @@ async def pause_command(cmd: ChatCommand):
         Path(SETTINGS["db"]["pause"]).write_text(f"{LIVE_STATS['pause_min']:.02f};{pause_start.isoformat()}")
         with open(SETTINGS["db"]["pause_log"], "a") as f:
             f.write(f"{pause_start.isoformat()}\t{LIVE_STATS['pause_min']:.2f}\tPause Started\n")
+        log.info(SETTINGS["fmt"]["tpause_success"].format(**fmt_dict))
         await cmd.reply(SETTINGS["fmt"]["tpause_success"].format(**fmt_dict))
 
 
@@ -130,6 +131,7 @@ async def resume_command(cmd: ChatCommand):
         Path(SETTINGS["db"]["pause"]).write_text(f"{LIVE_STATS['pause_min']:.02f}")
         with open(SETTINGS["db"]["pause_log"], "a") as f:
             f.write(f"{now.isoformat()}\t{LIVE_STATS['pause_min']:.2f}\tPause Ended & added {added_min:.2f}\n")
+        log.info(SETTINGS["fmt"]["tresume_success"].format(**fmt_dict))
         await cmd.reply(SETTINGS["fmt"]["tresume_success"].format(**fmt_dict))
 
 
@@ -159,6 +161,7 @@ async def raised_command(cmd: ChatCommand):
         "pause_min": LIVE_STATS["pause_min"],
         "pause_start": LIVE_STATS["pause_start"] or "Not Currently Paused",
     }
+    log.info(SETTINGS["fmt"]["traised_success"].format(**fmt_dict))
     await cmd.reply(SETTINGS["fmt"]["traised_success"].format(**fmt_dict))
 
 
@@ -346,7 +349,7 @@ if __name__ == "__main__":
     START_TIME = datetime.fromisoformat(SETTINGS["start"]["time"])
     LIVE_STATS = {
         "pause_min": 0.0,
-        "pause_start": None,
+        "pause_start": None,  # type: Optional[datetime]
         "donos": {
             "bits": 0,
             "subs": {"t1": 0, "t2": 0, "t3": 0},
@@ -355,7 +358,7 @@ if __name__ == "__main__":
     }
     load_pause(Path(SETTINGS["db"]["pause"]))
     MSG_MAGIC = regex_compile(SETTINGS)
-    log.info(f"{MSG_MAGIC}")
+    log.debug(f"{MSG_MAGIC}")
     load_csv(Path(SETTINGS["db"]["events"]))
 
     asyncio.run(main(SETTINGS))
