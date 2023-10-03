@@ -17,6 +17,7 @@ max_minutes = 4320  # 3 full days (3 * 24 * 60). Set to 0 for uncapped
 events = "db/events.csv"  # File to store every event
 pause = "db/pause.txt"  # File to note how long stream has been paused
 pause_log = "db/pause_log.txt"  # File to log updates to pause time
+end_mark = "db/end.toml"
 
 [output]
 dir = "out"  # Directory to write the output files
