@@ -100,7 +100,7 @@ async def pause_command(cmd: ChatCommand):
         "pause_min": LIVE_STATS["pause_min"],
         "pause_start": LIVE_STATS["pause_start"],
         "end_ts": LIVE_STATS["end"].get("end_ts"),
-        "end_min": LIVE_STATS["end"].get("end_ts"),
+        "end_min": LIVE_STATS["end"].get("end_min"),
     }
     if not (cmd.user.mod or cmd.user.name.lower() == SETTINGS["twitch"]["channel"].lower()):
         log.warning(SETTINGS["fmt"]["cmd_blocked"].format(**fmt_dict))
@@ -155,7 +155,7 @@ async def parse_time_from_cmd(cmd: ChatCommand, cmd_name: str):
         "pause_min": LIVE_STATS["pause_min"],
         "pause_start": LIVE_STATS["pause_start"],
         "end_ts": LIVE_STATS["end"].get("end_ts"),
-        "end_min": LIVE_STATS["end"].get("end_ts"),
+        "end_min": LIVE_STATS["end"].get("end_min"),
     }
     if not (cmd.user.mod or cmd.user.name.lower() == SETTINGS["twitch"]["channel"].lower()):
         log.warning(SETTINGS["fmt"]["cmd_blocked"].format(**fmt_dict))
@@ -250,7 +250,7 @@ async def raised_command(cmd: ChatCommand):
         "min_paid_for": calc_chat_minutes(),
         "min_end_at": calc_minutes(),
         "end_ts": LIVE_STATS["end"].get("end_ts"),
-        "end_min": LIVE_STATS["end"].get("end_ts"),
+        "end_min": LIVE_STATS["end"].get("end_min"),
         "total_value": calc_dollars(),
         "countdown": calc_timer(),
         "bits": LIVE_STATS["donos"]["bits"],
