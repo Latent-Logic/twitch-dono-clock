@@ -99,9 +99,14 @@ async def pause_command(cmd: ChatCommand):
         "cmd": "tpause",
         "pause_min": LIVE_STATS["pause_min"],
         "pause_start": LIVE_STATS["pause_start"],
+        "end_ts": LIVE_STATS["end"].get("end_ts"),
+        "end_min": LIVE_STATS["end"].get("end_ts"),
     }
     if not (cmd.user.mod or cmd.user.name.lower() == SETTINGS["twitch"]["channel"].lower()):
         log.warning(SETTINGS["fmt"]["cmd_blocked"].format(**fmt_dict))
+        return
+    elif LIVE_STATS["end"]:
+        await cmd.reply(SETTINGS["fmt"]["cmd_after_end"].format(**fmt_dict))
         return
     if LIVE_STATS["pause_start"] is not None:
         await cmd.reply(SETTINGS["fmt"]["tpause_failure"].format(**fmt_dict))
@@ -149,9 +154,14 @@ async def parse_time_from_cmd(cmd: ChatCommand, cmd_name: str):
         "cmd": cmd_name,
         "pause_min": LIVE_STATS["pause_min"],
         "pause_start": LIVE_STATS["pause_start"],
+        "end_ts": LIVE_STATS["end"].get("end_ts"),
+        "end_min": LIVE_STATS["end"].get("end_ts"),
     }
     if not (cmd.user.mod or cmd.user.name.lower() == SETTINGS["twitch"]["channel"].lower()):
         log.warning(SETTINGS["fmt"]["cmd_blocked"].format(**fmt_dict))
+        return
+    elif LIVE_STATS["end"]:
+        await cmd.reply(SETTINGS["fmt"]["cmd_after_end"].format(**fmt_dict))
         return
     try:
         raw = cmd.parameter.split()[0]
@@ -237,7 +247,10 @@ async def raised_command(cmd: ChatCommand):
         "so_far_total_min": so_far_total_min,
         "so_far_hrs": so_far_total_min // 60,
         "so_far_min": so_far_total_min % 60,
-        "min_paid_for": calc_minutes(),
+        "min_paid_for": calc_chat_minutes(),
+        "min_end_at": calc_minutes(),
+        "end_ts": LIVE_STATS["end"].get("end_ts"),
+        "end_min": LIVE_STATS["end"].get("end_ts"),
         "total_value": calc_dollars(),
         "countdown": calc_timer(),
         "bits": LIVE_STATS["donos"]["bits"],
@@ -302,7 +315,8 @@ def append_csv(file_path: Path, ts: int, user: str, type: str, amount: float, ta
         )
 
 
-def calc_minutes() -> float:
+def calc_chat_minutes() -> float:
+    """Total number of minutes paid for by chat"""
     minutes = 0
     donos = LIVE_STATS["donos"]
     minutes += donos["bits"] * SETTINGS["bits"]["min"]
@@ -314,7 +328,24 @@ def calc_minutes() -> float:
     return minutes
 
 
+def calc_minutes() -> float:
+    """Total number of minutes to use for final calculations"""
+    if SETTINGS["end"].get("max_minutes"):
+        return min(SETTINGS["end"]["max_minutes"], calc_chat_minutes())
+    else:
+        return calc_chat_minutes()
+
+
+def calc_minutes_over() -> float:
+    """How many minutes over the final calculation we are"""
+    if SETTINGS["end"].get("max_minutes"):
+        return calc_chat_minutes() - SETTINGS["end"]["max_minutes"]
+    else:
+        return 0.0
+
+
 def calc_dollars() -> float:
+    """Total financial gain from chat donations"""
     dollars = 0
     donos = LIVE_STATS["donos"]
     dollars += donos["bits"] * SETTINGS["bits"]["money"]
@@ -327,7 +358,10 @@ def calc_dollars() -> float:
 
 
 def calc_time_so_far() -> timedelta:
-    if LIVE_STATS["pause_start"] is not None:
+    """How much time has been counted down since the start"""
+    if LIVE_STATS["end"].get("end_ts"):
+        cur_time = LIVE_STATS["end"]["end_ts"]
+    elif LIVE_STATS["pause_start"] is not None:
         cur_time: datetime = LIVE_STATS["pause_start"]
     else:
         cur_time = datetime.now(tz=timezone.utc)
@@ -337,7 +371,7 @@ def calc_time_so_far() -> timedelta:
 
 
 def calc_timer() -> str:
-    global LIVE_STATS
+    """Generate the timer string from the difference between paid and run minutes"""
     accrued_time = timedelta(minutes=calc_minutes())
     remaining = accrued_time - calc_time_so_far()
     hours = int(remaining.total_seconds() / 60 / 60)
@@ -351,10 +385,34 @@ def calc_timer() -> str:
         return time_str
 
 
+def handle_end(initial_run: bool = False):
+    if initial_run and not LIVE_STATS["end"]:
+        end_file = Path(SETTINGS["db"]["end_mark"])
+        if end_file.is_file():
+            LIVE_STATS["end"] = toml.load(end_file)
+            assert "end_min" in LIVE_STATS["end"] and "end_ts" in LIVE_STATS["end"]
+            log.info(f"Loaded end marker file and got {LIVE_STATS}")
+    if LIVE_STATS["end"]:
+        return  # We've already reached an end state, no need for further calculations
+    time_so_far = calc_time_so_far()
+    available_time = timedelta(minutes=calc_minutes())
+    if time_so_far < available_time:
+        return  # We've not reached our ending time yet everyone still run normally
+    now = datetime.now(tz=timezone.utc)
+    end_time = now - (time_so_far - available_time)
+    LIVE_STATS["end"] = {
+        "end_min": available_time.total_seconds() / 60,
+        "end_ts": end_time,
+        "ended_at_max": calc_chat_minutes() >= SETTINGS["end"].get("max_minutes", 0),
+    }
+    Path(SETTINGS["db"]["end_mark"]).write_text(toml.dumps(LIVE_STATS["end"]))
+
+
 def write_files():
     out_dict = SETTINGS["output"]
     out_dir = Path(out_dict["dir"])
     out_dir.mkdir(parents=True, exist_ok=True)
+    handle_end()
     (out_dir / out_dict["bits"]).write_text(f'{LIVE_STATS["donos"]["bits"]}')
     (out_dir / out_dict["tips"]).write_text(f'{LIVE_STATS["donos"]["tips"]:.02f}')
     (out_dir / out_dict["subs"]).write_text(
@@ -445,10 +503,12 @@ if __name__ == "__main__":
             "subs": {"t1": 0, "t2": 0, "t3": 0},
             "tips": 0,
         },
+        "end": {},
     }
     load_pause(Path(SETTINGS["db"]["pause"]))
     MSG_MAGIC = regex_compile(SETTINGS)
     log.debug(f"{MSG_MAGIC}")
     load_csv(Path(SETTINGS["db"]["events"]))
+    handle_end(initial_run=True)
 
     asyncio.run(main(SETTINGS))

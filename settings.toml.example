@@ -10,6 +10,9 @@ enable_cmds = true  # Set to false to disable listening for commands
 minutes = 60  # How many minutes to have on the clock at the beginning
 time = "2023-09-27T12:00:00-07:00"
 
+[end]
+max_minutes = 4320  # 3 full days (3 * 24 * 60). Set to 0 for uncapped
+
 [db]
 events = "db/events.csv"  # File to store every event
 pause = "db/pause.txt"  # File to note how long stream has been paused
@@ -53,11 +56,12 @@ regex = "(?P<user>[^ ]*) just tipped \\$(?P<amount>[^ ]*) emoteHeart.*"
 [fmt]
 countdown_pause = "{clock} PAUSED"
 cmd_blocked = "Non-mod user {user} just tried to !{cmd}"
+cmd_after_end = "Can't run !{cmd} because timer ended at {end_min} minutes"
 tpause_success = "Pause started"
 tpause_failure = "Pause already started at {pause_start}"
 tresume_success = "Pause resumed with an addition of {added_min:.02f} minutes for a total of {pause_min:.02f} minutes"
 tresume_failure = "Pause not started"
-traised_success = "Raised ${total_value:.2f} and has run for {so_far_total_min:.2f}/{min_paid_for:.2f} minutes"
+traised_success = "Raised ${total_value:.2f} and has run for {so_far_total_min:.2f}/{min_end_at:.2f} minutes"
 missing_time_parameter_failure = "Please enter an amount of time after !{cmd}"
 invalid_time_parameter_failure = "Failed to parse parameter with error: {err}"
 tadd_success = "Added {pause_delta} minutes to the clock"
