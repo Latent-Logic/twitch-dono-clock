@@ -84,6 +84,14 @@ async def on_sub(sub: ChatSub):
     )
 
 
+def save_pause_file():
+    pause_min, pause_start = LIVE_STATS["pause_min"], LIVE_STATS["pause_start"]
+    if pause_start:
+        Path(SETTINGS["db"]["pause"]).write_text(f"{pause_min:.02f};{pause_start.isoformat()}")
+    else:
+        Path(SETTINGS["db"]["pause"]).write_text(f"{LIVE_STATS['pause_min']:.02f}")
+
+
 # this will be called whenever the !reply command is issued
 async def pause_command(cmd: ChatCommand):
     fmt_dict = {
@@ -101,7 +109,7 @@ async def pause_command(cmd: ChatCommand):
         pause_start = datetime.now(tz=timezone.utc)
         LIVE_STATS["pause_start"] = pause_start
         fmt_dict["pause_start"] = pause_start
-        Path(SETTINGS["db"]["pause"]).write_text(f"{LIVE_STATS['pause_min']:.02f};{pause_start.isoformat()}")
+        save_pause_file()
         with open(SETTINGS["db"]["pause_log"], "a") as f:
             f.write(f"{pause_start.isoformat()}\t{LIVE_STATS['pause_min']:.2f}\tPause Started\n")
         log.info(SETTINGS["fmt"]["tpause_success"].format(**fmt_dict))
@@ -128,11 +136,91 @@ async def resume_command(cmd: ChatCommand):
         fmt_dict["added_min"] = added_min
         fmt_dict["pause_start"] = None
         LIVE_STATS["pause_start"] = None
-        Path(SETTINGS["db"]["pause"]).write_text(f"{LIVE_STATS['pause_min']:.02f}")
+        save_pause_file()
         with open(SETTINGS["db"]["pause_log"], "a") as f:
             f.write(f"{now.isoformat()}\t{LIVE_STATS['pause_min']:.2f}\tPause Ended & added {added_min:.2f}\n")
         log.info(SETTINGS["fmt"]["tresume_success"].format(**fmt_dict))
         await cmd.reply(SETTINGS["fmt"]["tresume_success"].format(**fmt_dict))
+
+
+async def parse_time_from_cmd(cmd: ChatCommand, cmd_name: str):
+    fmt_dict = {
+        "user": cmd.user.name,
+        "cmd": cmd_name,
+        "pause_min": LIVE_STATS["pause_min"],
+        "pause_start": LIVE_STATS["pause_start"],
+    }
+    if not (cmd.user.mod or cmd.user.name.lower() == SETTINGS["twitch"]["channel"].lower()):
+        log.warning(SETTINGS["fmt"]["cmd_blocked"].format(**fmt_dict))
+        return
+    try:
+        raw = cmd.parameter.split()[0]
+        if raw.endswith("h") or raw.endswith("hr") or raw.endswith("hrs"):
+            num_str = raw[: raw.find("h")]
+            mins = float(num_str) * 60
+        elif raw.endswith("m") or raw.endswith("min") or raw.endswith("mins"):
+            num_str = raw[: raw.find("m")]
+            mins = float(num_str)
+        elif raw.endswith("s") or raw.endswith("sec") or raw.endswith("secs"):
+            num_str = raw[: raw.find("s")]
+            mins = float(num_str) / 60
+        else:
+            raise ValueError(f"Didn't recognize {raw}. Type a number followed by s, m, or h")
+        if mins <= 0:
+            raise ValueError(f"Only use positive numbers with this command")
+    except IndexError as err:
+        fmt_dict |= {"err": str(err), "err_type": str(type(err))}
+        log.error(cmd.reply(SETTINGS["fmt"]["missing_time_parameter_failure"].format(**fmt_dict)))
+        await cmd.reply(SETTINGS["fmt"]["missing_time_parameter_failure"].format(**fmt_dict))
+        raise
+    except ValueError as err:
+        fmt_dict |= {"err": str(err), "err_type": str(type(err))}
+        log.error(SETTINGS["fmt"]["invalid_time_parameter_failure"].format(**fmt_dict))
+        await cmd.reply(SETTINGS["fmt"]["invalid_time_parameter_failure"].format(**fmt_dict))
+        raise
+    return mins
+
+
+async def add_time_command(cmd: ChatCommand):
+    try:
+        minutes = await parse_time_from_cmd(cmd, "tadd")
+    except (IndexError, ValueError):
+        return
+    fmt_dict = {
+        "user": cmd.user.name,
+        "cmd": "tadd",
+        "pause_min": LIVE_STATS["pause_min"],
+        "pause_start": LIVE_STATS["pause_start"],
+        "pause_delta": minutes,
+    }
+    LIVE_STATS["pause_min"] += minutes
+    save_pause_file()
+    now = datetime.now(tz=timezone.utc)
+    with open(SETTINGS["db"]["pause_log"], "a") as f:
+        f.write(f"{now.isoformat()}\t{LIVE_STATS['pause_min']:.2f}\tPause time increased by !{cmd} {minutes}m\n")
+    log.info(SETTINGS["fmt"]["tadd_success"].format(**fmt_dict))
+    await cmd.reply(SETTINGS["fmt"]["tadd_success"].format(**fmt_dict))
+
+
+async def remove_time_command(cmd: ChatCommand):
+    try:
+        minutes = await parse_time_from_cmd(cmd, "tadd")
+    except (IndexError, ValueError):
+        return
+    fmt_dict = {
+        "user": cmd.user.name,
+        "cmd": "tadd",
+        "pause_min": LIVE_STATS["pause_min"],
+        "pause_start": LIVE_STATS["pause_start"],
+        "pause_delta": minutes,
+    }
+    LIVE_STATS["pause_min"] -= minutes
+    save_pause_file()
+    now = datetime.now(tz=timezone.utc)
+    with open(SETTINGS["db"]["pause_log"], "a") as f:
+        f.write(f"{now.isoformat()}\t{LIVE_STATS['pause_min']:.2f}\tPause time reduced by !{cmd} {minutes}m\n")
+    log.info(SETTINGS["fmt"]["tremove_success"].format(**fmt_dict))
+    await cmd.reply(SETTINGS["fmt"]["tremove_success"].format(**fmt_dict))
 
 
 async def raised_command(cmd: ChatCommand):
@@ -319,6 +407,8 @@ async def main(settings: dict):
     if settings["twitch"].get("enable_cmds", True):
         chat.register_command("tpause", pause_command)
         chat.register_command("tresume", resume_command)
+        chat.register_command("tadd", add_time_command)
+        chat.register_command("tremove", remove_time_command)
         chat.register_command("traised", raised_command)
 
     # we are done with our setup, lets start this bot up!
