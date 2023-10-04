@@ -248,7 +248,7 @@ async def raised_command(cmd: ChatCommand):
         "so_far_hrs": so_far_total_min // 60,
         "so_far_min": so_far_total_min % 60,
         "min_paid_for": calc_chat_minutes(),
-        "min_end_at": calc_minutes(),
+        "min_end_at": calc_end().total_seconds() / 60,
         "end_ts": LIVE_STATS["end"].get("end_ts"),
         "end_min": LIVE_STATS["end"].get("end_min"),
         "total_value": calc_dollars(),
@@ -328,12 +328,14 @@ def calc_chat_minutes() -> float:
     return minutes
 
 
-def calc_minutes() -> float:
-    """Total number of minutes to use for final calculations"""
+def calc_end() -> timedelta:
+    """Find the timedelta to use for final calculations"""
+    minutes = calc_chat_minutes()
     if SETTINGS["end"].get("max_minutes"):
-        return min(SETTINGS["end"]["max_minutes"], calc_chat_minutes())
-    else:
-        return calc_chat_minutes()
+        minutes = min(minutes, SETTINGS["end"]["max_minutes"])
+    if minutes > 60:
+        return timedelta(hours=minutes // 60, minutes=minutes % 60)
+    return timedelta(minutes=minutes)
 
 
 def calc_minutes_over() -> float:
@@ -372,7 +374,7 @@ def calc_time_so_far() -> timedelta:
 
 def calc_timer() -> str:
     """Generate the timer string from the difference between paid and run minutes"""
-    accrued_time = timedelta(minutes=calc_minutes())
+    accrued_time = calc_end()
     remaining = accrued_time - calc_time_so_far()
     hours = int(remaining.total_seconds() / 60 / 60)
     minutes = int(remaining.total_seconds() / 60) % 60
@@ -395,7 +397,7 @@ def handle_end(initial_run: bool = False):
     if LIVE_STATS["end"]:
         return  # We've already reached an end state, no need for further calculations
     time_so_far = calc_time_so_far()
-    available_time = timedelta(minutes=calc_minutes())
+    available_time = calc_end()
     if time_so_far < available_time:
         return  # We've not reached our ending time yet everyone still run normally
     now = datetime.now(tz=timezone.utc)
