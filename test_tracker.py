@@ -310,7 +310,7 @@ def append_csv(file_path: Path, ts: int, user: str, type: str, amount: float, ta
     if not file_path.is_file():
         raise FileNotFoundError(f"No CSV file found at {file_path}, Should have been created earlier?!?")
     with file_path.open("a") as f:
-        csv.DictWriter(f, CSV_COLUMNS).writerow(
+        csv.DictWriter(f, CSV_COLUMNS, lineterminator="\n").writerow(
             {"time": ts, "user": user, "target": target or "", "type": type, "amount": amount}
         )
 
