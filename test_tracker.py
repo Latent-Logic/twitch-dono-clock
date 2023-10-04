@@ -333,8 +333,8 @@ def calc_end() -> timedelta:
     minutes = calc_chat_minutes()
     if SETTINGS["end"].get("max_minutes"):
         minutes = min(minutes, SETTINGS["end"]["max_minutes"])
-    if minutes > 60:
-        return timedelta(hours=minutes // 60, minutes=minutes % 60)
+    if minutes > 60 * 24:
+        return timedelta(days=minutes // (60 * 24), minutes=minutes % (24 * 60))
     return timedelta(minutes=minutes)
 
 
