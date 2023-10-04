@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s\t%(levelname)s\t%(na
 
 # this will be called when the event READY is triggered, which will be on bot start
 async def on_ready(ready_event: EventData):
-    log.info("Bot is ready for work, joining channels")
+    log.info(f"Bot is ready for work, joining channel {SETTINGS['twitch']['channel']}")
     # join our target channel, if you want to join multiple, either call join for each individually
     # or even better pass a list of channels as the argument
     await ready_event.chat.join_room(SETTINGS["twitch"]["channel"])
