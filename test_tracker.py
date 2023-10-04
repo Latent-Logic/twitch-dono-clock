@@ -78,7 +78,7 @@ async def on_sub(sub: ChatSub):
         Path(SETTINGS["db"]["events"]),
         ts=sub._parsed["tags"]["tmi-sent-ts"],
         user=sub._parsed["tags"]["display-name"],
-        target=sub._parsed["tags"].get("msg-param-recipient-user-name"),
+        target=sub._parsed["tags"].get("msg-param-recipient-display-name"),
         type=f"subs_{tier}",
         amount=1,
     )
