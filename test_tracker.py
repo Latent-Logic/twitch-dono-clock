@@ -51,7 +51,7 @@ async def on_message(msg: ChatMessage):
         append_csv(
             Path(SETTINGS["db"]["events"]),
             ts=msg.sent_timestamp,
-            user=msg.user.name,
+            user=msg.user.display_name,
             target=None,
             type="bits",
             amount=msg.bits,
