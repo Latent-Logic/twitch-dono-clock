@@ -17,7 +17,20 @@ from twitchAPI.type import AuthScope, ChatEvent, TwitchAPIException
 USER_SCOPE = [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT]
 CSV_COLUMNS = ["time", "user", "target", "type", "amount"]
 log = logging.getLogger("test_tracker")
-logging.basicConfig(level=logging.INFO, format="%(asctime)s\t%(levelname)s\t%(name)s\t%(message)s")
+
+
+def config_logging(level: str = "INFO"):
+    stream_handler = logging.StreamHandler()
+    file_handler = logging.FileHandler(datetime.now().strftime("%Y.%m.%d-%H.%M.%S.log"))
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s\t%(levelname)s\t%(name)s\t%(message)s",
+        handlers=[stream_handler, file_handler],
+    )
+    stream_handler.setLevel(level=level)
+
+
+config_logging()
 
 
 # this will be called when the event READY is triggered, which will be on bot start
