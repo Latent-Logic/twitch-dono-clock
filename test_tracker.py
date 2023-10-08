@@ -28,6 +28,14 @@ def config_logging(level: str = "INFO"):
         handlers=[stream_handler, file_handler],
     )
     stream_handler.setLevel(level=level)
+    chat_logger = logging.getLogger("twitchAPI.chat")
+
+    def oauth_filter(record):
+        if record.msg.startswith('> "PASS oauth:'):
+            return False
+        return True
+
+    chat_logger.addFilter(oauth_filter)
 
 
 config_logging()
