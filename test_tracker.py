@@ -494,7 +494,9 @@ def regex_compile(settings: dict) -> List[Tuple[str, re.Pattern, str]]:
 
 if __name__ == "__main__":
     SETTINGS = toml.load("settings.toml")
-    START_TIME = datetime.fromisoformat(SETTINGS["start"]["time"])
+    START_TIME = SETTINGS["start"]["time"]
+    if isinstance(START_TIME, str):
+        START_TIME = datetime.fromisoformat(START_TIME)
     LIVE_STATS = {
         "pause_min": 0.0,
         "pause_start": None,  # type: Optional[datetime]
