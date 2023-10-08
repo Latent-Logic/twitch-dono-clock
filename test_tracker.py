@@ -292,6 +292,7 @@ def load_pause(file_path: Path):
     else:
         time = raw
     LIVE_STATS["pause_min"] = float(time)
+    log.debug(f"Loaded Pause file and got {LIVE_STATS['pause_min']=} {LIVE_STATS['pause_start']=}")
 
 
 # Load CSV log file for refreshing stats
@@ -316,7 +317,7 @@ def load_csv(file_path: Path):
                     LIVE_STATS["donos"]["subs"]["t2"] += int(row["amount"])
                 elif row["type"].endswith("_t3"):
                     LIVE_STATS["donos"]["subs"]["t3"] += int(row["amount"])
-    log.info(f"Loaded CSV file and got: {LIVE_STATS}")
+    log.debug(f"Loaded CSV file and got: {LIVE_STATS['donos']=}")
 
 
 def append_csv(file_path: Path, ts: int, user: str, type: str, amount: float, target: Optional[str] = None):
@@ -343,6 +344,8 @@ def calc_chat_minutes() -> float:
 
 def calc_end() -> timedelta:
     """Find the timedelta to use for final calculations"""
+    if LIVE_STATS["end"].get("end_min"):
+        return timedelta(minutes=LIVE_STATS["end"]["end_min"])
     minutes = calc_chat_minutes()
     if SETTINGS["end"].get("max_minutes"):
         minutes = min(minutes, SETTINGS["end"]["max_minutes"])
@@ -385,8 +388,7 @@ def calc_time_so_far() -> timedelta:
 
 def calc_timer() -> str:
     """Generate the timer string from the difference between paid and run minutes"""
-    accrued_time = calc_end()
-    remaining = accrued_time - calc_time_so_far()
+    remaining = calc_end() - calc_time_so_far()
     hours = int(remaining.total_seconds() / 60 / 60)
     minutes = int(remaining.total_seconds() / 60) % 60
     seconds = int(remaining.total_seconds()) % 60
@@ -404,7 +406,7 @@ def handle_end(initial_run: bool = False):
         if end_file.is_file():
             LIVE_STATS["end"] = toml.load(end_file)
             assert "end_min" in LIVE_STATS["end"] and "end_ts" in LIVE_STATS["end"]
-            log.info(f"Loaded end marker file and got {LIVE_STATS}")
+            log.debug(f"Loaded end marker file and got {LIVE_STATS['end']=}")
     if LIVE_STATS["end"]:
         return  # We've already reached an end state, no need for further calculations
     time_so_far = calc_time_so_far()
@@ -502,6 +504,7 @@ def regex_compile(settings: dict) -> List[Tuple[str, re.Pattern, str]]:
         msg_magic.append((user, re.compile(obj["regex"]), "bits"))
     for user, obj in settings["tips"].get("msg", {}).items():
         msg_magic.append((user, re.compile(obj["regex"]), "tips"))
+    log.debug(f"Loaded regex matches: {msg_magic}")
     return msg_magic
 
 
@@ -522,8 +525,8 @@ if __name__ == "__main__":
     }
     load_pause(Path(SETTINGS["db"]["pause"]))
     MSG_MAGIC = regex_compile(SETTINGS)
-    log.debug(f"{MSG_MAGIC}")
     load_csv(Path(SETTINGS["db"]["events"]))
     handle_end(initial_run=True)
+    log.info(f"Finished loading files and got {LIVE_STATS=}")
 
     asyncio.run(main(SETTINGS))
