@@ -310,7 +310,7 @@ def load_csv(file_path: Path):
         file_path.parent.mkdir(exist_ok=True, parents=True)
         file_path.write_text(",".join(CSV_COLUMNS))
         return
-    with file_path.open("r") as f:
+    with file_path.open("r", encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=",")
         assert reader.fieldnames == CSV_COLUMNS
         for row in reader:
@@ -331,7 +331,7 @@ def load_csv(file_path: Path):
 def append_csv(file_path: Path, ts: int, user: str, type: str, amount: float, target: Optional[str] = None):
     if not file_path.is_file():
         raise FileNotFoundError(f"No CSV file found at {file_path}, Should have been created earlier?!?")
-    with file_path.open("a") as f:
+    with file_path.open("a", encoding="utf-8") as f:
         csv.DictWriter(f, CSV_COLUMNS, lineterminator="\n").writerow(
             {"time": ts, "user": user, "target": target or "", "type": type, "amount": amount}
         )
