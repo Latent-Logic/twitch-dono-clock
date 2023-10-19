@@ -228,19 +228,19 @@ async def add_time_command(cmd: ChatCommand):
     save_pause_file()
     now = datetime.now(tz=timezone.utc)
     with open(SETTINGS["db"]["pause_log"], "a") as f:
-        f.write(f"{now.isoformat()}\t{LIVE_STATS['pause_min']:.2f}\tPause time increased by !{cmd} {minutes}m\n")
+        f.write(f"{now.isoformat()}\t{LIVE_STATS['pause_min']:.2f}\tPause time increased by !tadd {minutes}m\n")
     log.info(SETTINGS["fmt"]["tadd_success"].format(**fmt_dict))
     await cmd.reply(SETTINGS["fmt"]["tadd_success"].format(**fmt_dict))
 
 
 async def remove_time_command(cmd: ChatCommand):
     try:
-        minutes = await parse_time_from_cmd(cmd, "tadd")
+        minutes = await parse_time_from_cmd(cmd, "tremove")
     except (IndexError, ValueError):
         return
     fmt_dict = {
         "user": cmd.user.name,
-        "cmd": "tadd",
+        "cmd": "tremove",
         "pause_min": LIVE_STATS["pause_min"],
         "pause_start": LIVE_STATS["pause_start"],
         "pause_delta": minutes,
@@ -249,7 +249,7 @@ async def remove_time_command(cmd: ChatCommand):
     save_pause_file()
     now = datetime.now(tz=timezone.utc)
     with open(SETTINGS["db"]["pause_log"], "a") as f:
-        f.write(f"{now.isoformat()}\t{LIVE_STATS['pause_min']:.2f}\tPause time reduced by !{cmd} {minutes}m\n")
+        f.write(f"{now.isoformat()}\t{LIVE_STATS['pause_min']:.2f}\tPause time reduced by !tremove {minutes}m\n")
     log.info(SETTINGS["fmt"]["tremove_success"].format(**fmt_dict))
     await cmd.reply(SETTINGS["fmt"]["tremove_success"].format(**fmt_dict))
 
