@@ -18,6 +18,17 @@ USER_SCOPE = [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT]
 CSV_COLUMNS = ["time", "user", "target", "type", "amount"]
 log = logging.getLogger("test_tracker")
 
+LIVE_STATS = {
+    "pause_min": 0.0,
+    "pause_start": None,  # type: Optional[datetime]
+    "donos": {
+        "bits": 0,
+        "subs": {"t1": 0, "t2": 0, "t3": 0},
+        "tips": 0,
+    },
+    "end": {},
+}
+
 
 def config_logging(level: str = "INFO"):
     stream_handler = logging.StreamHandler()
@@ -389,7 +400,7 @@ def calc_time_so_far() -> timedelta:
         cur_time: datetime = LIVE_STATS["pause_start"]
     else:
         cur_time = datetime.now(tz=timezone.utc)
-    time_so_far = cur_time - START_TIME
+    time_so_far = cur_time - SETTINGS["start"]["time"]
     corrected_tsf = time_so_far - timedelta(minutes=LIVE_STATS["pause_min"])
     return corrected_tsf
 
@@ -518,19 +529,8 @@ def regex_compile(settings: dict) -> List[Tuple[str, re.Pattern, str]]:
 
 if __name__ == "__main__":
     SETTINGS = toml.load("settings.toml")
-    START_TIME = SETTINGS["start"]["time"]
-    if isinstance(START_TIME, str):
-        START_TIME = datetime.fromisoformat(START_TIME)
-    LIVE_STATS = {
-        "pause_min": 0.0,
-        "pause_start": None,  # type: Optional[datetime]
-        "donos": {
-            "bits": 0,
-            "subs": {"t1": 0, "t2": 0, "t3": 0},
-            "tips": 0,
-        },
-        "end": {},
-    }
+    if isinstance(SETTINGS["start"]["time"], str):
+        SETTINGS["start"]["time"] = datetime.fromisoformat(SETTINGS["start"]["time"])
     load_pause(Path(SETTINGS["db"]["pause"]))
     MSG_MAGIC = regex_compile(SETTINGS)
     load_csv(Path(SETTINGS["db"]["events"]))
