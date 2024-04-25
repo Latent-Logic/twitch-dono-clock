@@ -22,7 +22,7 @@ end_mark = "db/end.toml"
 [output]
 listen = "127.0.0.1"
 port = 8000
-public = "127.0.0.1:8000"
+public = "ws://127.0.0.1:8000"
 css = "#text {}"
 
 [bits]

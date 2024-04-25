@@ -538,7 +538,7 @@ websocket_html = """
     <body>
         <p id='text'>Not Yet Connected</p>
         <script>
-            var ws = new WebSocket("ws://{hostname}/ws");
+            var ws = new WebSocket("{hostname}/ws");
             ws.onmessage = function(event) {{
                 var text = document.getElementById('text')
                 text.innerText = event.data
