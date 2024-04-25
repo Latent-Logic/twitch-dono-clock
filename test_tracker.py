@@ -400,6 +400,7 @@ def calc_time_so_far() -> timedelta:
     else:
         cur_time = datetime.now(tz=timezone.utc)
     time_so_far = cur_time - SETTINGS["start"]["time"]
+    time_so_far -= timedelta(minutes=SETTINGS["start"]["minutes"])
     corrected_tsf = time_so_far - timedelta(minutes=LIVE_STATS["pause_min"])
     return corrected_tsf
 
