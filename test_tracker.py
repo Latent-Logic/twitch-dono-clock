@@ -483,9 +483,7 @@ async def main(settings: dict):
         raise
 
     # create chat instance
-    chat = await Chat(twitch)
-
-    # register the handlers for the events you want
+    chat = await Chat(twitch, callback_loop=asyncio.get_running_loop(), no_message_reset_time=6)
 
     # listen to when the bot is done starting up and ready to join channels
     chat.register_event(ChatEvent.READY, on_ready)
