@@ -9,14 +9,14 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 import toml
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse
-from starlette.responses import PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from twitchAPI.chat import Chat, ChatCommand, ChatMessage, ChatSub, EventData
 from twitchAPI.oauth import UserAuthenticator
 from twitchAPI.twitch import Twitch
 from twitchAPI.type import AuthScope, ChatEvent, TwitchAPIException
+from websockets import ConnectionClosedOK
 
 # "chat:read chat:edit"
 USER_SCOPE = [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT]
@@ -494,11 +494,10 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
-@app.get("/live_stats")
+@app.get("/live_stats", response_class=JSONResponse)
 async def get_live_stats():
     handle_end()
-    json_compatible_item_data = jsonable_encoder(LIVE_STATS)
-    return JSONResponse(content=json_compatible_item_data)
+    return jsonable_encoder(LIVE_STATS)
 
 
 @app.get("/live_stats/bits", response_class=PlainTextResponse)
@@ -527,6 +526,47 @@ async def get_total_value():
 async def get_calc_timer():
     handle_end()
     return calc_timer()
+
+
+websocket_html = """
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>{name}</title>
+        <style>{css}</style>
+    </head>
+    <body>
+        <p id='text'>Not Yet Connected</p>
+        <script>
+            var ws = new WebSocket("ws://{hostname}/ws");
+            ws.onmessage = function(event) {{
+                var text = document.getElementById('text')
+                text.innerText = event.data
+            }};
+        </script>
+    </body>
+</html>
+"""
+
+
+@app.get("/live", response_class=HTMLResponse)
+async def get():
+    return websocket_html.format(name="test", css=SETTINGS["output"]["css"], hostname=SETTINGS["output"]["public"])
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            handle_end()
+            try:
+                await websocket.send_text(calc_timer())
+                await asyncio.sleep(0.5)
+            except ConnectionClosedOK:
+                break
+    except WebSocketDisconnect:
+        pass
 
 
 def load_pause(file_path: Path):
