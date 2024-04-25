@@ -3,11 +3,16 @@ import asyncio
 import csv
 import logging
 import re
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional, Tuple
 
 import toml
+from fastapi import FastAPI
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
+from starlette.responses import PlainTextResponse
 from twitchAPI.chat import Chat, ChatCommand, ChatMessage, ChatSub, EventData
 from twitchAPI.oauth import UserAuthenticator
 from twitchAPI.twitch import Twitch
@@ -308,22 +313,6 @@ async def raised_command(cmd: ChatCommand):
     await cmd.reply(SETTINGS["fmt"]["traised_success"].format(**fmt_dict))
 
 
-def load_pause(file_path: Path):
-    if not file_path.is_file():
-        log.warning(f"No pause file found at {file_path}, creating one")
-        file_path.parent.mkdir(exist_ok=True, parents=True)
-        file_path.write_text("0.0")
-        return
-    raw = file_path.read_text()
-    if ";" in raw:
-        time, pause_time = raw.strip().split(";", maxsplit=1)
-        LIVE_STATS["pause_start"] = datetime.fromisoformat(pause_time)
-    else:
-        time = raw
-    LIVE_STATS["pause_min"] = float(time)
-    log.debug(f"Loaded Pause file and got {LIVE_STATS['pause_min']=} {LIVE_STATS['pause_start']=}")
-
-
 # Load CSV log file for refreshing stats
 def load_csv(file_path: Path):
     if not file_path.is_file():
@@ -452,38 +441,18 @@ def handle_end(initial_run: bool = False):
     Path(SETTINGS["db"]["end_mark"]).write_text(toml.dumps(LIVE_STATS["end"]))
 
 
-def write_files():
-    out_dict = SETTINGS["output"]
-    out_dir = Path(out_dict["dir"])
-    out_dir.mkdir(parents=True, exist_ok=True)
-    handle_end()
-    (out_dir / out_dict["bits"]).write_text(f'{LIVE_STATS["donos"]["bits"]}')
-    (out_dir / out_dict["tips"]).write_text(f'{LIVE_STATS["donos"]["tips"]:.02f}')
-    (out_dir / out_dict["subs"]).write_text(
-        str(LIVE_STATS["donos"]["subs"]["t1"] + LIVE_STATS["donos"]["subs"]["t2"] + LIVE_STATS["donos"]["subs"]["t3"])
-    )
-    (out_dir / out_dict["countdown"]).write_text(calc_timer())
-    (out_dir / out_dict["total_value"]).write_text(f"{calc_dollars():0.02f}")
-
-
-async def write_every_second():
-    while True:
-        await asyncio.sleep(1)
-        write_files()
-
-
-# this is where we set up the bot
-async def main(settings: dict):
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     # set up twitch api instance and add user authentication with some scopes
-    twitch = await Twitch(settings["twitch"]["app_id"], settings["twitch"]["app_secret"])
-    usr_token_file = Path(settings["twitch"]["user_token_file"])
+    twitch = await Twitch(SETTINGS["twitch"]["app_id"], SETTINGS["twitch"]["app_secret"])
+    usr_token_file = Path(SETTINGS["twitch"]["user_token_file"])
     if usr_token_file.is_file():
         user_auth = toml.load(usr_token_file)
         token, refresh_token = user_auth["token"], user_auth.get("refresh_token")
         if not refresh_token:
             twitch.auto_refresh_auth = False
     else:
-        auth = UserAuthenticator(twitch, USER_SCOPE, url=settings["twitch"]["auth_url"])
+        auth = UserAuthenticator(twitch, USER_SCOPE, url=SETTINGS["twitch"]["auth_url"])
         token, refresh_token = await auth.authenticate(browser_name="google-chrome")
         usr_token_file.write_text(toml.dumps({"token": token, "refresh_token": refresh_token}))
     try:
@@ -504,7 +473,7 @@ async def main(settings: dict):
     # there are more events, you can view them all in this documentation
 
     # you can directly register commands and their handlers
-    if settings["twitch"].get("enable_cmds", True):
+    if SETTINGS["twitch"].get("enable_cmds", True):
         chat.register_command("tpause", pause_command)
         chat.register_command("tresume", resume_command)
         chat.register_command("tadd", add_time_command)
@@ -514,15 +483,66 @@ async def main(settings: dict):
     # we are done with our setup, lets start this bot up!
     chat.start()
 
-    try:
-        try:
-            await write_every_second()
-        except (KeyboardInterrupt, asyncio.CancelledError):
-            pass
-    finally:
-        # now we can close the chat bot and the twitch api client
-        chat.stop()
-        await twitch.close()
+    yield  # Run FastAPI stuff
+
+    # now we can close the chat bot and the twitch api client
+    chat.stop()
+    await twitch.close()
+    log.info("Done shutting down TwitchAPI")
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.get("/live_stats")
+async def get_live_stats():
+    handle_end()
+    json_compatible_item_data = jsonable_encoder(LIVE_STATS)
+    return JSONResponse(content=json_compatible_item_data)
+
+
+@app.get("/live_stats/bits", response_class=PlainTextResponse)
+async def get_live_stats_bits():
+    return f'{LIVE_STATS["donos"]["bits"]}'
+
+
+@app.get("/live_stats/tips", response_class=PlainTextResponse)
+async def get_live_stats_tips():
+    return f'${LIVE_STATS["donos"]["tips"]:.02f}'
+
+
+@app.get("/live_stats/subs", response_class=PlainTextResponse)
+async def get_live_stats_subs():
+    return str(
+        LIVE_STATS["donos"]["subs"]["t1"] + LIVE_STATS["donos"]["subs"]["t2"] + LIVE_STATS["donos"]["subs"]["t3"]
+    )
+
+
+@app.get("/live_stats/total_value", response_class=PlainTextResponse)
+async def get_total_value():
+    return f"${calc_dollars():0.02f}"
+
+
+@app.get("/calc_timer", response_class=PlainTextResponse)
+async def get_calc_timer():
+    handle_end()
+    return calc_timer()
+
+
+def load_pause(file_path: Path):
+    if not file_path.is_file():
+        log.warning(f"No pause file found at {file_path}, creating one")
+        file_path.parent.mkdir(exist_ok=True, parents=True)
+        file_path.write_text("0.0")
+        return
+    raw = file_path.read_text()
+    if ";" in raw:
+        time, pause_time = raw.strip().split(";", maxsplit=1)
+        LIVE_STATS["pause_start"] = datetime.fromisoformat(pause_time)
+    else:
+        time = raw
+    LIVE_STATS["pause_min"] = float(time)
+    log.debug(f"Loaded Pause file and got {LIVE_STATS['pause_min']=} {LIVE_STATS['pause_start']=}")
 
 
 def regex_compile(settings: dict) -> List[Tuple[str, re.Pattern, str]]:
@@ -545,4 +565,9 @@ if __name__ == "__main__":
     handle_end(initial_run=True)
     log.info(f"Finished loading files and got {LIVE_STATS=}")
 
-    asyncio.run(main(SETTINGS))
+    import uvicorn
+
+    try:
+        uvicorn.run(app, host=SETTINGS["output"]["listen"], port=SETTINGS["output"]["port"])
+    except KeyboardInterrupt:
+        pass

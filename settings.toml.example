@@ -20,12 +20,8 @@ pause_log = "db/pause_log.txt"  # File to log updates to pause time
 end_mark = "db/end.toml"
 
 [output]
-dir = "out"  # Directory to write the output files
-bits = "bits.txt"
-subs = "subs.txt"
-tips = "tips.txt"
-countdown = "countdown.txt"
-total_value = "total_value.txt"
+listen = "127.0.0.1"
+port = 8000
 
 [bits]
 min = 0.02
