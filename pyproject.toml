@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "twitch-dono-clock"
-version = "0.0.1"
+version = "0.1.0"
 description = "Twitch donothon clock based on reading chat"
 authors = ["Latent Logic <lat.logic@gmail.com>"]
 readme = "README.md"
@@ -11,6 +11,8 @@ python = "^3.9"
 twitchAPI = "^4.0.0"
 aiofiles = "^23.2.1"
 toml = "^0.10.2"
+fastapi = "^0.110.2"
+uvicorn = "^0.29.0"
 
 [tool.isort]
 profile = "black"
