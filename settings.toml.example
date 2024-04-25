@@ -5,6 +5,7 @@ channel = "mychannel"  # Twitch channel to listen to
 auth_url = "http://localhost:17563/oauth2/authorize"  # Twitch OAuth2 authorization URL
 user_token_file = "usr_token.toml"  # Twitch user auth file
 enable_cmds = true  # Set to false to disable listening for commands
+admin_users = ["latentlogic"]  # Users who can always run commands
 
 [start]
 minutes = 60  # How many minutes to have on the clock at the beginning

@@ -149,7 +149,7 @@ async def pause_command(cmd: ChatCommand):
         "end_ts": LIVE_STATS["end"].get("end_ts"),
         "end_min": LIVE_STATS["end"].get("end_min"),
     }
-    if not (cmd.user.mod or cmd.user.name.lower() == SETTINGS["twitch"]["channel"].lower()):
+    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS["twitch"]["admin_users"]):
         log.warning(SETTINGS["fmt"]["cmd_blocked"].format(**fmt_dict))
         return
     elif LIVE_STATS["end"]:
@@ -175,7 +175,7 @@ async def resume_command(cmd: ChatCommand):
         "pause_min": LIVE_STATS["pause_min"],
         "pause_start": LIVE_STATS["pause_start"],
     }
-    if not (cmd.user.mod or cmd.user.name.lower() == SETTINGS["twitch"]["channel"].lower()):
+    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS["twitch"]["admin_users"]):
         log.warning(SETTINGS["fmt"]["cmd_blocked"].format(**fmt_dict))
         return
     if LIVE_STATS["pause_start"] is None:
@@ -204,7 +204,7 @@ async def parse_time_from_cmd(cmd: ChatCommand, cmd_name: str):
         "end_ts": LIVE_STATS["end"].get("end_ts"),
         "end_min": LIVE_STATS["end"].get("end_min"),
     }
-    if not (cmd.user.mod or cmd.user.name.lower() == SETTINGS["twitch"]["channel"].lower()):
+    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS["twitch"]["admin_users"]):
         log.warning(SETTINGS["fmt"]["cmd_blocked"].format(**fmt_dict))
         return
     elif LIVE_STATS["end"]:
@@ -285,7 +285,7 @@ async def raised_command(cmd: ChatCommand):
         "user": cmd.user.name,
         "cmd": "traised",
     }
-    if not (cmd.user.mod or cmd.user.name.lower() == SETTINGS["twitch"]["channel"].lower()):
+    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS["twitch"]["admin_users"]):
         log.warning(SETTINGS["fmt"]["cmd_blocked"].format(**fmt_dict))
         return
     so_far_total_min = calc_time_so_far().total_seconds() / 60
@@ -605,6 +605,17 @@ def regex_compile(settings: dict) -> List[Tuple[str, re.Pattern, str]]:
     return msg_magic
 
 
+def add_streamer_to_admin():
+    streamer = SETTINGS["twitch"]["channel"].lower()
+    found_streamer = False
+    for i, name in enumerate(SETTINGS["twitch"]["admin_users"]):
+        if streamer == name.lower():
+            found_streamer = True
+        SETTINGS["twitch"]["admin_users"][i] = name.lower()
+    if not found_streamer:
+        SETTINGS["twitch"]["admin_users"].append(streamer)
+
+
 if __name__ == "__main__":
     SETTINGS = toml.load("settings.toml")
     if isinstance(SETTINGS["start"]["time"], str):
@@ -614,6 +625,8 @@ if __name__ == "__main__":
     load_csv(Path(SETTINGS["db"]["events"]))
     handle_end(initial_run=True)
     log.info(f"Finished loading files and got {LIVE_STATS=}")
+    add_streamer_to_admin()
+    log.info(f'Users who can run cmds in addition to mods {SETTINGS["twitch"]["admin_users"]}')
 
     import uvicorn
 
