@@ -536,13 +536,22 @@ websocket_html = """
         <style>{css}</style>
     </head>
     <body>
-        <p id='text'>Not Yet Connected</p>
+        <div id='text'>Not Yet Connected</div>
         <script>
-            var ws = new WebSocket("{hostname}/ws");
-            ws.onmessage = function(event) {{
-                var text = document.getElementById('text')
-                text.innerText = event.data
-            }};
+            var ws
+            function connect() {{
+                ws = new WebSocket("{hostname}/ws");
+                ws.onmessage = function(event) {{
+                    var text = document.getElementById('text')
+                    text.innerText = event.data
+                }}
+            }}
+            connect()
+            var interval = setInterval(function() {{
+                    if (ws.readyState === WebSocket.CLOSED) {{
+                        connect()
+                    }}
+            }}, 60000);
         </script>
     </body>
 </html>
