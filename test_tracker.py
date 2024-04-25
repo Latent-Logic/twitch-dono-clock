@@ -97,22 +97,32 @@ async def on_message(msg: ChatMessage):
 
 # this will be called whenever someone subscribes to a channel
 async def on_sub(sub: ChatSub):
-    log.info(
+    log_msg = (
         f"New subscription in {sub.room.name}:"
-        f"\tType: {sub.sub_plan}\\n"
+        f"\tType: {sub.sub_plan}"
         f'\tFrom: {sub._parsed["tags"]["display-name"]}'
         f'\tTo: {sub._parsed["tags"].get("msg-param-recipient-user-name", sub._parsed["tags"]["display-name"])}'
     )
+    if SETTINGS["subs"]["count_multimonth"]:
+        months = int(sub._parsed["tags"].get("msg-param-multimonth-duration", 0))
+        if not months:
+            months = int(sub._parsed["tags"].get("msg-param-gift-months", 0))
+        if not months:
+            months = 1
+        log_msg += f"\t Months: {months}"
+    else:
+        months = 1
+    log.info(log_msg)
     log.debug(f"{sub._parsed=}")
     tier = SETTINGS["subs"]["plan"][sub.sub_plan]
-    LIVE_STATS["donos"]["subs"][tier] += 1
+    LIVE_STATS["donos"]["subs"][tier] += months
     append_csv(
         Path(SETTINGS["db"]["events"]),
         ts=sub._parsed["tags"]["tmi-sent-ts"],
         user=sub._parsed["tags"]["display-name"],
         target=sub._parsed["tags"].get("msg-param-recipient-display-name"),
         type=f"subs_{tier}",
-        amount=1,
+        amount=months,
     )
 
 
