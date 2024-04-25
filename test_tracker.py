@@ -329,7 +329,7 @@ def load_csv(file_path: Path):
     if not file_path.is_file():
         log.warning(f"No CSV file found at {file_path}, creating one")
         file_path.parent.mkdir(exist_ok=True, parents=True)
-        file_path.write_text(",".join(CSV_COLUMNS))
+        file_path.write_text(",".join(CSV_COLUMNS) + "\n")
         return
     with file_path.open("r", encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=",")
