@@ -575,16 +575,11 @@ websocket_html = """
             var ws
             function connect() {{
                 ws = new WebSocket("{hostname}/ws");
-                ws.onmessage = function(event) {{
-                    var text = document.getElementById('text')
-                    text.innerText = event.data
-                }}
+                ws.onmessage = function(event) {{ document.getElementById('text').innerText = event.data }}
             }}
             connect()
             var interval = setInterval(function() {{
-                    if (ws.readyState === WebSocket.CLOSED) {{
-                        connect()
-                    }}
+                    if (ws.readyState === WebSocket.CLOSED) {{ connect() }}
             }}, 60000);
         </script>
     </body>
@@ -594,7 +589,7 @@ websocket_html = """
 
 @app.get("/live", response_class=HTMLResponse)
 async def get():
-    return websocket_html.format(name="test", css=SETTINGS["output"]["css"], hostname=SETTINGS["output"]["public"])
+    return websocket_html.format(name="countdown", css=SETTINGS["output"]["css"], hostname=SETTINGS["output"]["public"])
 
 
 @app.websocket("/ws")
