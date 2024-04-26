@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional, Tuple
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import toml
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -527,6 +528,38 @@ async def get_total_value():
 async def get_calc_timer():
     handle_end()
     return calc_timer()
+
+
+@app.get("/events", response_class=HTMLResponse)
+async def get_events(timezone: Optional[str] = None):
+    if timezone is None:
+        tz = ZoneInfo("UTC")
+    else:
+        try:
+            tz = ZoneInfo(timezone)
+        except ZoneInfoNotFoundError as e:
+            return f"<html><body><xmp>{e}</xmp></body></html>"
+
+    events_per_day = {}
+    with Path(SETTINGS["db"]["events"]).open("r", encoding="utf-8") as f:
+        reader = csv.DictReader(f, delimiter=",")
+        assert reader.fieldnames == CSV_COLUMNS
+        for row in reader:
+            row["time"]: datetime = datetime.fromtimestamp(int(row["time"]) / 1000).astimezone(tz)
+            day = row["time"].date()
+            day_list = events_per_day.setdefault(day, [])
+            day_list.append(row)
+
+    build_table = ""
+    for date, rows in events_per_day.items():
+        build_table += f"\n<h1>{date:%Y-%m-%d}</h1>\n<table>\n"
+        build_table += "<tr>" + "".join(f"<th>{s}</th>" for s in CSV_COLUMNS) + "</tr>\n"
+        for row in rows:
+            build_table += "<tr>" + "".join(f"<td>{row[s]}</td>" for s in CSV_COLUMNS) + "</tr>\n"
+        build_table += "</table>\n"
+    style = """table {border: 2px solid rgb(140 140 140);}
+    th,td {border: 1px solid rgb(160 160 160);}"""
+    return f"<html><head><style>{style}</style></head><body>{build_table}</body></html>"
 
 
 websocket_html = """
