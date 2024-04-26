@@ -35,6 +35,7 @@ regex = "(?P<user>[^ ]*) played (?P<alert>.*) for (?P<amount>[^ ]*) Bits.*"
 
 [subs]
 count_multimonth = false
+count_multimonth_gift = false
 [subs.plan]
 Prime = "t1"
 1000 = "t1"

@@ -111,7 +111,7 @@ async def on_sub(sub: ChatSub):
     )
     if SETTINGS["subs"]["count_multimonth"]:
         months = int(sub._parsed["tags"].get("msg-param-multimonth-duration", 0))
-        if not months:
+        if not months and SETTINGS["subs"]["count_multimonth_gift"]:
             months = int(sub._parsed["tags"].get("msg-param-gift-months", 0))
         if not months:
             months = 1
