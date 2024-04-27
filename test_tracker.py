@@ -332,7 +332,7 @@ async def add_tip_command(cmd: ChatCommand):
     elif len(parameters) == 3:
         giver, amount_str, reason = parameters
     else:
-        await cmd.reply(f"Command format !{cmd} [donor] [amount] <type-of-tip>".format(**fmt_dict))
+        await cmd.reply("Command format !{cmd} [donor] [amount] <type-of-tip>".format(**fmt_dict))
         return
     if giver.startswith("@"):
         giver = giver[1:]
