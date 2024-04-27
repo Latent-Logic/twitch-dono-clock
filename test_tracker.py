@@ -140,7 +140,6 @@ def save_pause_file():
         Path(SETTINGS["db"]["pause"]).write_text(f"{LIVE_STATS['pause_min']:.02f}")
 
 
-# this will be called whenever the !reply command is issued
 async def pause_command(cmd: ChatCommand):
     fmt_dict = {
         "user": cmd.user.name,
@@ -314,6 +313,52 @@ async def raised_command(cmd: ChatCommand):
     await cmd.reply(SETTINGS["fmt"]["traised_success"].format(**fmt_dict))
 
 
+async def add_tip_command(cmd: ChatCommand):
+    fmt_dict = {
+        "user": cmd.user.name,
+        "cmd": "taddtip",
+    }
+    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS["twitch"]["admin_users"]):
+        log.warning(SETTINGS["fmt"]["cmd_blocked"].format(**fmt_dict))
+        return
+    elif LIVE_STATS["end"]:
+        await cmd.reply(SETTINGS["fmt"]["cmd_after_end"].format(**fmt_dict))
+        return
+
+    parameters = cmd.parameter.split()
+    if len(parameters) == 2:
+        giver, amount_str = parameters
+        reason = None
+    elif len(parameters) == 3:
+        giver, amount_str, reason = parameters
+    else:
+        await cmd.reply(f"Command format !{cmd} [donor] [amount] <type-of-tip>".format(**fmt_dict))
+        return
+    if giver.startswith("@"):
+        giver = giver[1:]
+    if amount_str.startswith("$"):
+        amount_str = amount_str[1:]
+    try:
+        amount = float(amount_str)
+    except ValueError:
+        await cmd.reply("Parameter [amount] must be parsable as numbers to be recorded")
+        return
+    log.info(f"in {cmd.room.name}, {cmd.user.name} added tip from {giver}: {amount:.02f} w/ type {reason}")
+    LIVE_STATS["donos"]["tips"] += amount
+    append_csv(
+        Path(SETTINGS["db"]["events"]),
+        ts=cmd.sent_timestamp,
+        user=giver,
+        target=reason,
+        type="tips",
+        amount=amount,
+    )
+    if reason:
+        await cmd.reply(f"Recorded tip from {giver} of ${amount:.02f} with type {reason}")
+    else:
+        await cmd.reply(f"Recorded tip from {giver} of ${amount:.02f}")
+
+
 # Load CSV log file for refreshing stats
 def load_csv(file_path: Path):
     if not file_path.is_file():
@@ -481,6 +526,7 @@ async def lifespan(app: FastAPI):
         chat.register_command("tadd", add_time_command)
         chat.register_command("tremove", remove_time_command)
         chat.register_command("traised", raised_command)
+        chat.register_command("taddtip", add_tip_command)
 
     # we are done with our setup, lets start this bot up!
     chat.start()
