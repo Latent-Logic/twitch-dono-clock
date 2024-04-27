@@ -22,6 +22,7 @@ events = "db/events.csv"  # File to store every event
 pause = "db/pause.txt"  # File to note how long stream has been paused
 pause_log = "db/pause_log.txt"  # File to log updates to pause time
 end_mark = "db/end.toml"
+spins = "db/spins.txt"  # File to note how many spins have happened
 
 [output]
 listen = "127.0.0.1"

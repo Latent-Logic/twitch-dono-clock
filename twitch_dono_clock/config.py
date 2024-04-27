@@ -46,6 +46,7 @@ class SetDB(BaseModel):
     pause: str
     pause_log: str
     end_mark: str
+    spins: str
 
 
 class SetOutput(BaseModel):

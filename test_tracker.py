@@ -39,6 +39,7 @@ LIVE_STATS = {
         SUBS: {T1: 0, T2: 0, T3: 0},
         TIPS: 0,
     },
+    "spin_done": 0,
     "end": {},
 }
 
@@ -142,6 +143,39 @@ async def on_raid(raid: dict):
     _raid_timestamp = raid.get("tags", {}).get("tmi-sent-ts")
     log.info(f"RAID from {raider} with {raider_count} raiders just happened!")
     log.debug(f"{raid}")
+
+
+async def spin_done_command(cmd: ChatCommand):
+    fmt_dict = {
+        "user": cmd.user.name,
+        "cmd": "tspin",
+        "spins_to_do": int(calc_dollars() // 25),
+        "old_spin_done": LIVE_STATS["spin_done"],
+    }
+    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
+        log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
+        return
+    parameters = cmd.parameter.split()
+    if not parameters:
+        new_total = LIVE_STATS["spin_done"] + 1
+        fmt_dict["spin_done"] = new_total
+        response = "Spin counter increased by 1, now {spin_done}/{spins_to_do}".format(**fmt_dict)
+    elif len(parameters) == 1:
+        try:
+            new_total = int(parameters[0])
+        except ValueError:
+            await cmd.reply(f"The new total `{parameters[0]}` must be parsable as an integer")
+            return
+        fmt_dict["spin_done"] = new_total
+        response = "Spin counter set from {old_spin_done} to {spin_done} out of {spins_to_do}".format(**fmt_dict)
+    else:
+        await cmd.reply("Command format !{cmd} <new_total>".format(**fmt_dict))
+        return
+    LIVE_STATS["spin_done"] = new_total
+    Path(SETTINGS.db.spins).write_text(str(new_total))
+
+    log.info(response)
+    await cmd.reply(response)
 
 
 async def pause_command(cmd: ChatCommand):
@@ -550,6 +584,7 @@ async def lifespan(app: FastAPI):
 
     # you can directly register commands and their handlers
     if SETTINGS.twitch.enable_cmds:
+        chat.register_command("tspin", spin_done_command)
         chat.register_command("tpause", pause_command)
         chat.register_command("tresume", resume_command)
         chat.register_command("tadd", add_time_command)
@@ -607,7 +642,7 @@ async def get_total_value():
 
 @app.get("/live_stats/spins", response_class=PlainTextResponse)
 async def get_total_value():
-    return f"{calc_dollars()/25:0.02f}"
+    return f"{LIVE_STATS['spin_done']}/{calc_dollars()/25:0.1f}"
 
 
 @app.get("/calc_timer", response_class=PlainTextResponse)
@@ -724,8 +759,20 @@ async def websocket_endpoint(websocket: WebSocket):
         pass
 
 
+def load_spins(file_path: Path):
+    if not file_path.is_file():
+        log.warning(f"No spin file found at {file_path}, creating one")
+        file_path.parent.mkdir(exist_ok=True, parents=True)
+        file_path.write_text("0")
+        return
+    raw = file_path.read_text()
+    LIVE_STATS["spin_done"] = int(raw)
+    log.debug(f"Loaded Spin file and got {LIVE_STATS['spin_done']=}")
+
+
 if __name__ == "__main__":
     Pause.load_pause()
+    load_spins(Path(SETTINGS.db.spins))
     load_csv()
     handle_end(initial_run=True)
     log.info(f"Finished loading files and got {LIVE_STATS=}")
