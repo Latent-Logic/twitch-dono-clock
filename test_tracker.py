@@ -605,6 +605,11 @@ async def get_total_value():
     return f"${calc_dollars():0.02f}"
 
 
+@app.get("/live_stats/spins", response_class=PlainTextResponse)
+async def get_total_value():
+    return f"{calc_dollars()/25:0.02f}"
+
+
 @app.get("/calc_timer", response_class=PlainTextResponse)
 async def get_calc_timer():
     handle_end()
