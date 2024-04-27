@@ -411,6 +411,7 @@ def calc_end() -> timedelta:
     if LIVE_STATS["end"].get("end_min"):
         return timedelta(minutes=LIVE_STATS["end"]["end_min"])
     minutes = calc_chat_minutes()
+    minutes += SETTINGS["start"]["minutes"]
     if SETTINGS["end"].get("max_minutes"):
         minutes = min(minutes, SETTINGS["end"]["max_minutes"])
     return timedelta(minutes=minutes)
@@ -446,7 +447,6 @@ def calc_time_so_far() -> timedelta:
     else:
         cur_time = datetime.now(tz=timezone.utc)
     time_so_far = cur_time - SETTINGS["start"]["time"]
-    time_so_far -= timedelta(minutes=SETTINGS["start"]["minutes"])
     corrected_tsf = time_so_far - timedelta(minutes=LIVE_STATS["pause_min"])
     return corrected_tsf
 
@@ -467,6 +467,8 @@ def calc_timer() -> str:
 
 def handle_end(initial_run: bool = False):
     if initial_run and not LIVE_STATS["end"]:
+        if SETTINGS["end"]["max_minutes"]:
+            assert SETTINGS["end"]["max_minutes"] > SETTINGS["start"]["minutes"]
         end_file = Path(SETTINGS["db"]["end_mark"])
         if end_file.is_file():
             LIVE_STATS["end"] = toml.load(end_file)
