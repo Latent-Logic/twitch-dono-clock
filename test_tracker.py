@@ -14,6 +14,8 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from twitchAPI.chat import Chat, ChatCommand, ChatMessage, ChatSub, EventData
+from twitchAPI.eventsub.websocket import EventSubWebsocket
+from twitchAPI.helper import first
 from twitchAPI.oauth import UserAuthenticator
 from twitchAPI.twitch import Twitch
 from twitchAPI.type import AuthScope, ChatEvent, TwitchAPIException
@@ -490,6 +492,48 @@ def handle_end(initial_run: bool = False):
     Path(SETTINGS["db"]["end_mark"]).write_text(toml.dumps(LIVE_STATS["end"]))
 
 
+async def channel_offline(_event):
+    now = datetime.now(tz=timezone.utc)
+    if LIVE_STATS["pause_start"] is not None:
+        log.info(
+            f"Channel went offline at {now.isoformat()}, already was paused at {LIVE_STATS['pause_start'].isoformat()}"
+        )
+    elif SETTINGS["twitch"]["pause_on_offline"]:
+        LIVE_STATS["pause_start"] = now
+        save_pause_file()
+        with open(SETTINGS["db"]["pause_log"], "a") as f:
+            f.write(f"{now.isoformat()}\t{LIVE_STATS['pause_min']:.2f}\tPause Started because channel went offline\n")
+        log.info(f"Channel went offline at {now.isoformat()}, pause started")
+    else:
+        log.info(f"Channel went offline at {now.isoformat()}, but pause not started, timer is still running")
+
+
+async def channel_online(_event):
+    now = datetime.now(tz=timezone.utc)
+    if LIVE_STATS["pause_start"] and SETTINGS["twitch"]["unpause_on_online"]:
+        added_min = (now - LIVE_STATS["pause_start"]).total_seconds() / 60
+        LIVE_STATS["pause_min"] += added_min
+        LIVE_STATS["pause_start"] = None
+        save_pause_file()
+        with open(SETTINGS["db"]["pause_log"], "a") as f:
+            f.write(
+                f"{now.isoformat()}\t{LIVE_STATS['pause_min']:.2f}"
+                f"\tPause Ended because channel went online & added {added_min:.2f}\n"
+            )
+        log.info(
+            f"Pause resumed with an addition of {added_min:.02f} minutes"
+            f" for a total of {LIVE_STATS['pause_min']:.02f} minutes"
+        )
+    elif LIVE_STATS["pause_start"]:
+        pause_start: datetime = LIVE_STATS["pause_start"]
+        delta = (now - pause_start).total_seconds() / 60.0
+        log.info(
+            f"Channel went online at {now.isoformat()}, pause started at {pause_start.isoformat()} or {delta} min ago"
+        )
+    else:
+        log.info(f"Channel went online at {now.isoformat()}, but time was not paused?!?")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # set up twitch api instance and add user authentication with some scopes
@@ -509,6 +553,15 @@ async def lifespan(app: FastAPI):
     except TwitchAPIException:
         log.error(f"Invalid token, please remove {usr_token_file} try again")
         raise
+
+    # Get id for twitch channel
+    channel = await first(twitch.get_users(logins=[SETTINGS["twitch"]["channel"]]))
+
+    # create eventsub websocket instance and start the client.
+    eventsub = EventSubWebsocket(twitch)
+    eventsub.start()
+    await eventsub.listen_stream_offline(channel.id, channel_offline)
+    await eventsub.listen_stream_online(channel.id, channel_online)
 
     # create chat instance
     chat = await Chat(twitch, callback_loop=asyncio.get_running_loop(), no_message_reset_time=6)
@@ -535,6 +588,7 @@ async def lifespan(app: FastAPI):
 
     yield  # Run FastAPI stuff
 
+    await eventsub.stop()
     # now we can close the chat bot and the twitch api client
     chat.stop()
     await twitch.close()
