@@ -134,6 +134,14 @@ async def on_sub(sub: ChatSub):
     )
 
 
+async def on_raid(raid: dict):
+    raider = raid.get("tags", {}).get("msg-param-displayName", "Unknown")
+    raider_count = int(raid.get("tags", {}).get("msg-param-viewerCount", -1))
+    _raid_timestamp = raid.get("tags", {}).get("tmi-sent-ts")
+    log.info(f"RAID from {raider} with {raider_count} raiders just happened!")
+    log.debug(f"{raid}")
+
+
 def save_pause_file():
     pause_min, pause_start = LIVE_STATS["pause_min"], LIVE_STATS["pause_start"]
     if pause_start:
@@ -572,7 +580,8 @@ async def lifespan(app: FastAPI):
     chat.register_event(ChatEvent.MESSAGE, on_message)
     # listen to channel subscriptions
     chat.register_event(ChatEvent.SUB, on_sub)
-    # there are more events, you can view them all in this documentation
+    # listen to channel raids
+    chat.register_event(ChatEvent.RAID, on_raid)
 
     # you can directly register commands and their handlers
     if SETTINGS["twitch"].get("enable_cmds", True):
