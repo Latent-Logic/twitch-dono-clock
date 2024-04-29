@@ -21,6 +21,8 @@ from twitchAPI.twitch import Twitch
 from twitchAPI.type import AuthScope, ChatEvent, TwitchAPIException
 from websockets import ConnectionClosedOK
 
+from twitch_dono_clock.config import SETTINGS
+
 # "chat:read chat:edit"
 USER_SCOPE = [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT]
 CSV_COLUMNS = ["time", "user", "target", "type", "amount"]
@@ -62,10 +64,10 @@ config_logging()
 
 # this will be called when the event READY is triggered, which will be on bot start
 async def on_ready(ready_event: EventData):
-    log.info(f"Bot is ready for work, joining channel {SETTINGS['twitch']['channel']}")
+    log.info(f"Bot is ready for work, joining channel {SETTINGS.twitch.channel}")
     # join our target channel, if you want to join multiple, either call join for each individually
     # or even better pass a list of channels as the argument
-    await ready_event.chat.join_room(SETTINGS["twitch"]["channel"])
+    await ready_event.chat.join_room(SETTINGS.twitch.channel)
     # you can do other bot initialization things in here
 
 
@@ -76,7 +78,7 @@ async def on_message(msg: ChatMessage):
         log.info(f"in {msg.room.name}, {msg.user.name} sent bits: {msg.bits}")
         LIVE_STATS["donos"]["bits"] += int(msg.bits)
         append_csv(
-            Path(SETTINGS["db"]["events"]),
+            Path(SETTINGS.db.events),
             ts=msg.sent_timestamp,
             user=msg.user.display_name,
             target=None,
@@ -94,7 +96,7 @@ async def on_message(msg: ChatMessage):
                     amount = float(match["amount"])
                 LIVE_STATS["donos"][target] += amount
                 append_csv(
-                    Path(SETTINGS["db"]["events"]),
+                    Path(SETTINGS.db.events),
                     ts=msg.sent_timestamp,
                     user=match["user"],
                     target=None,
@@ -111,9 +113,9 @@ async def on_sub(sub: ChatSub):
         f'\tFrom: {sub._parsed["tags"]["display-name"]}'
         f'\tTo: {sub._parsed["tags"].get("msg-param-recipient-user-name", sub._parsed["tags"]["display-name"])}'
     )
-    if SETTINGS["subs"]["count_multimonth"]:
+    if SETTINGS.subs.count_multimonth:
         months = int(sub._parsed["tags"].get("msg-param-multimonth-duration", 0))
-        if not months and SETTINGS["subs"]["count_multimonth_gift"]:
+        if not months and SETTINGS.subs.count_multimonth_gift:
             months = int(sub._parsed["tags"].get("msg-param-gift-months", 0))
         if not months:
             months = 1
@@ -122,10 +124,10 @@ async def on_sub(sub: ChatSub):
         months = 1
     log.info(log_msg)
     log.debug(f"{sub._parsed=}")
-    tier = SETTINGS["subs"]["plan"][sub.sub_plan]
+    tier = SETTINGS.subs.plan[sub.sub_plan]
     LIVE_STATS["donos"]["subs"][tier] += months
     append_csv(
-        Path(SETTINGS["db"]["events"]),
+        Path(SETTINGS.db.events),
         ts=sub._parsed["tags"]["tmi-sent-ts"],
         user=sub._parsed["tags"]["display-name"],
         target=sub._parsed["tags"].get("msg-param-recipient-display-name"),
@@ -145,9 +147,9 @@ async def on_raid(raid: dict):
 def save_pause_file():
     pause_min, pause_start = LIVE_STATS["pause_min"], LIVE_STATS["pause_start"]
     if pause_start:
-        Path(SETTINGS["db"]["pause"]).write_text(f"{pause_min:.02f};{pause_start.isoformat()}")
+        Path(SETTINGS.db.pause).write_text(f"{pause_min:.02f};{pause_start.isoformat()}")
     else:
-        Path(SETTINGS["db"]["pause"]).write_text(f"{LIVE_STATS['pause_min']:.02f}")
+        Path(SETTINGS.db.pause).write_text(f"{LIVE_STATS['pause_min']:.02f}")
 
 
 async def pause_command(cmd: ChatCommand):
@@ -159,23 +161,23 @@ async def pause_command(cmd: ChatCommand):
         "end_ts": LIVE_STATS["end"].get("end_ts"),
         "end_min": LIVE_STATS["end"].get("end_min"),
     }
-    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS["twitch"]["admin_users"]):
-        log.warning(SETTINGS["fmt"]["cmd_blocked"].format(**fmt_dict))
+    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
+        log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
         return
     elif LIVE_STATS["end"]:
-        await cmd.reply(SETTINGS["fmt"]["cmd_after_end"].format(**fmt_dict))
+        await cmd.reply(SETTINGS.fmt.cmd_after_end.format(**fmt_dict))
         return
     if LIVE_STATS["pause_start"] is not None:
-        await cmd.reply(SETTINGS["fmt"]["tpause_failure"].format(**fmt_dict))
+        await cmd.reply(SETTINGS.fmt.tpause_failure.format(**fmt_dict))
     else:
         pause_start = datetime.now(tz=timezone.utc)
         LIVE_STATS["pause_start"] = pause_start
         fmt_dict["pause_start"] = pause_start
         save_pause_file()
-        with open(SETTINGS["db"]["pause_log"], "a") as f:
+        with open(SETTINGS.db.pause_log, "a") as f:
             f.write(f"{pause_start.isoformat()}\t{LIVE_STATS['pause_min']:.2f}\tPause Started\n")
-        log.info(SETTINGS["fmt"]["tpause_success"].format(**fmt_dict))
-        await cmd.reply(SETTINGS["fmt"]["tpause_success"].format(**fmt_dict))
+        log.info(SETTINGS.fmt.tpause_success.format(**fmt_dict))
+        await cmd.reply(SETTINGS.fmt.tpause_success.format(**fmt_dict))
 
 
 async def resume_command(cmd: ChatCommand):
@@ -185,11 +187,11 @@ async def resume_command(cmd: ChatCommand):
         "pause_min": LIVE_STATS["pause_min"],
         "pause_start": LIVE_STATS["pause_start"],
     }
-    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS["twitch"]["admin_users"]):
-        log.warning(SETTINGS["fmt"]["cmd_blocked"].format(**fmt_dict))
+    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
+        log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
         return
     if LIVE_STATS["pause_start"] is None:
-        await cmd.reply(SETTINGS["fmt"]["tresume_failure"].format(**fmt_dict))
+        await cmd.reply(SETTINGS.fmt.tresume_failure.format(**fmt_dict))
     else:
         now = datetime.now(tz=timezone.utc)
         added_min = (now - LIVE_STATS["pause_start"]).total_seconds() / 60
@@ -199,10 +201,10 @@ async def resume_command(cmd: ChatCommand):
         fmt_dict["pause_start"] = None
         LIVE_STATS["pause_start"] = None
         save_pause_file()
-        with open(SETTINGS["db"]["pause_log"], "a") as f:
+        with open(SETTINGS.db.pause_log, "a") as f:
             f.write(f"{now.isoformat()}\t{LIVE_STATS['pause_min']:.2f}\tPause Ended & added {added_min:.2f}\n")
-        log.info(SETTINGS["fmt"]["tresume_success"].format(**fmt_dict))
-        await cmd.reply(SETTINGS["fmt"]["tresume_success"].format(**fmt_dict))
+        log.info(SETTINGS.fmt.tresume_success.format(**fmt_dict))
+        await cmd.reply(SETTINGS.fmt.tresume_success.format(**fmt_dict))
 
 
 async def parse_time_from_cmd(cmd: ChatCommand, cmd_name: str):
@@ -214,11 +216,11 @@ async def parse_time_from_cmd(cmd: ChatCommand, cmd_name: str):
         "end_ts": LIVE_STATS["end"].get("end_ts"),
         "end_min": LIVE_STATS["end"].get("end_min"),
     }
-    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS["twitch"]["admin_users"]):
-        log.warning(SETTINGS["fmt"]["cmd_blocked"].format(**fmt_dict))
+    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
+        log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
         return
     elif LIVE_STATS["end"]:
-        await cmd.reply(SETTINGS["fmt"]["cmd_after_end"].format(**fmt_dict))
+        await cmd.reply(SETTINGS.fmt.cmd_after_end.format(**fmt_dict))
         return
     try:
         raw = cmd.parameter.split()[0]
@@ -237,13 +239,13 @@ async def parse_time_from_cmd(cmd: ChatCommand, cmd_name: str):
             raise ValueError(f"Only use positive numbers with this command")
     except IndexError as err:
         fmt_dict |= {"err": str(err), "err_type": str(type(err))}
-        log.error(cmd.reply(SETTINGS["fmt"]["missing_time_parameter_failure"].format(**fmt_dict)))
-        await cmd.reply(SETTINGS["fmt"]["missing_time_parameter_failure"].format(**fmt_dict))
+        log.error(cmd.reply(SETTINGS.fmt.missing_time_parameter_failure.format(**fmt_dict)))
+        await cmd.reply(SETTINGS.fmt.missing_time_parameter_failure.format(**fmt_dict))
         raise
     except ValueError as err:
         fmt_dict |= {"err": str(err), "err_type": str(type(err))}
-        log.error(SETTINGS["fmt"]["invalid_time_parameter_failure"].format(**fmt_dict))
-        await cmd.reply(SETTINGS["fmt"]["invalid_time_parameter_failure"].format(**fmt_dict))
+        log.error(SETTINGS.fmt.invalid_time_parameter_failure.format(**fmt_dict))
+        await cmd.reply(SETTINGS.fmt.invalid_time_parameter_failure.format(**fmt_dict))
         raise
     return mins
 
@@ -263,10 +265,10 @@ async def add_time_command(cmd: ChatCommand):
     LIVE_STATS["pause_min"] += minutes
     save_pause_file()
     now = datetime.now(tz=timezone.utc)
-    with open(SETTINGS["db"]["pause_log"], "a") as f:
+    with open(SETTINGS.db.pause_log, "a") as f:
         f.write(f"{now.isoformat()}\t{LIVE_STATS['pause_min']:.2f}\tPause time increased by !tadd {minutes}m\n")
-    log.info(SETTINGS["fmt"]["tadd_success"].format(**fmt_dict))
-    await cmd.reply(SETTINGS["fmt"]["tadd_success"].format(**fmt_dict))
+    log.info(SETTINGS.fmt.tadd_success.format(**fmt_dict))
+    await cmd.reply(SETTINGS.fmt.tadd_success.format(**fmt_dict))
 
 
 async def remove_time_command(cmd: ChatCommand):
@@ -284,10 +286,10 @@ async def remove_time_command(cmd: ChatCommand):
     LIVE_STATS["pause_min"] -= minutes
     save_pause_file()
     now = datetime.now(tz=timezone.utc)
-    with open(SETTINGS["db"]["pause_log"], "a") as f:
+    with open(SETTINGS.db.pause_log, "a") as f:
         f.write(f"{now.isoformat()}\t{LIVE_STATS['pause_min']:.2f}\tPause time reduced by !tremove {minutes}m\n")
-    log.info(SETTINGS["fmt"]["tremove_success"].format(**fmt_dict))
-    await cmd.reply(SETTINGS["fmt"]["tremove_success"].format(**fmt_dict))
+    log.info(SETTINGS.fmt.tremove_success.format(**fmt_dict))
+    await cmd.reply(SETTINGS.fmt.tremove_success.format(**fmt_dict))
 
 
 async def raised_command(cmd: ChatCommand):
@@ -295,8 +297,8 @@ async def raised_command(cmd: ChatCommand):
         "user": cmd.user.name,
         "cmd": "traised",
     }
-    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS["twitch"]["admin_users"]):
-        log.warning(SETTINGS["fmt"]["cmd_blocked"].format(**fmt_dict))
+    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
+        log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
         return
     so_far_total_min = calc_time_so_far().total_seconds() / 60
     fmt_dict = {
@@ -319,8 +321,8 @@ async def raised_command(cmd: ChatCommand):
         "pause_min": LIVE_STATS["pause_min"],
         "pause_start": LIVE_STATS["pause_start"] or "Not Currently Paused",
     }
-    log.info(SETTINGS["fmt"]["traised_success"].format(**fmt_dict))
-    await cmd.reply(SETTINGS["fmt"]["traised_success"].format(**fmt_dict))
+    log.info(SETTINGS.fmt.traised_success.format(**fmt_dict))
+    await cmd.reply(SETTINGS.fmt.traised_success.format(**fmt_dict))
 
 
 async def add_tip_command(cmd: ChatCommand):
@@ -328,11 +330,11 @@ async def add_tip_command(cmd: ChatCommand):
         "user": cmd.user.name,
         "cmd": "taddtip",
     }
-    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS["twitch"]["admin_users"]):
-        log.warning(SETTINGS["fmt"]["cmd_blocked"].format(**fmt_dict))
+    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
+        log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
         return
     elif LIVE_STATS["end"]:
-        await cmd.reply(SETTINGS["fmt"]["cmd_after_end"].format(**fmt_dict))
+        await cmd.reply(SETTINGS.fmt.cmd_after_end.format(**fmt_dict))
         return
 
     parameters = cmd.parameter.split()
@@ -356,7 +358,7 @@ async def add_tip_command(cmd: ChatCommand):
     log.info(f"in {cmd.room.name}, {cmd.user.name} added tip from {giver}: {amount:.02f} w/ type {reason}")
     LIVE_STATS["donos"]["tips"] += amount
     append_csv(
-        Path(SETTINGS["db"]["events"]),
+        Path(SETTINGS.db.events),
         ts=cmd.sent_timestamp,
         user=giver,
         target=reason,
@@ -407,12 +409,12 @@ def calc_chat_minutes() -> float:
     """Total number of minutes paid for by chat"""
     minutes = 0
     donos = LIVE_STATS["donos"]
-    minutes += donos["bits"] * SETTINGS["bits"]["min"]
-    minutes += donos["tips"] * SETTINGS["tips"]["min"]
+    minutes += donos["bits"] * SETTINGS.bits.min
+    minutes += donos["tips"] * SETTINGS.tips.min
     subs = donos["subs"]
-    minutes += subs["t1"] * SETTINGS["subs"]["tier"]["t1"]["min"]
-    minutes += subs["t2"] * SETTINGS["subs"]["tier"]["t2"]["min"]
-    minutes += subs["t3"] * SETTINGS["subs"]["tier"]["t3"]["min"]
+    minutes += subs["t1"] * SETTINGS.subs.tier.t1.min
+    minutes += subs["t2"] * SETTINGS.subs.tier.t2.min
+    minutes += subs["t3"] * SETTINGS.subs.tier.t3.min
     return minutes
 
 
@@ -421,16 +423,16 @@ def calc_end() -> timedelta:
     if LIVE_STATS["end"].get("end_min"):
         return timedelta(minutes=LIVE_STATS["end"]["end_min"])
     minutes = calc_chat_minutes()
-    minutes += SETTINGS["start"]["minutes"]
-    if SETTINGS["end"].get("max_minutes"):
-        minutes = min(minutes, SETTINGS["end"]["max_minutes"])
+    minutes += SETTINGS.start.minutes
+    if SETTINGS.end.max_minutes:
+        minutes = min(minutes, SETTINGS.end.max_minutes)
     return timedelta(minutes=minutes)
 
 
 def calc_minutes_over() -> float:
     """How many minutes over the final calculation we are"""
-    if SETTINGS["end"].get("max_minutes"):
-        return calc_chat_minutes() - SETTINGS["end"]["max_minutes"]
+    if SETTINGS.end.max_minutes:
+        return calc_chat_minutes() - SETTINGS.end.max_minutes
     else:
         return 0.0
 
@@ -439,12 +441,12 @@ def calc_dollars() -> float:
     """Total financial gain from chat donations"""
     dollars = 0
     donos = LIVE_STATS["donos"]
-    dollars += donos["bits"] * SETTINGS["bits"]["money"]
-    dollars += donos["tips"] * SETTINGS["tips"]["money"]
+    dollars += donos["bits"] * SETTINGS.bits.money
+    dollars += donos["tips"] * SETTINGS.tips.money
     subs = donos["subs"]
-    dollars += subs["t1"] * SETTINGS["subs"]["tier"]["t1"]["money"]
-    dollars += subs["t2"] * SETTINGS["subs"]["tier"]["t2"]["money"]
-    dollars += subs["t3"] * SETTINGS["subs"]["tier"]["t3"]["money"]
+    dollars += subs["t1"] * SETTINGS.subs.tier.t1.money
+    dollars += subs["t2"] * SETTINGS.subs.tier.t2.money
+    dollars += subs["t3"] * SETTINGS.subs.tier.t3.money
     return dollars
 
 
@@ -456,7 +458,7 @@ def calc_time_so_far() -> timedelta:
         cur_time: datetime = LIVE_STATS["pause_start"]
     else:
         cur_time = datetime.now(tz=timezone.utc)
-    time_so_far = cur_time - SETTINGS["start"]["time"]
+    time_so_far = cur_time - SETTINGS.start.time
     corrected_tsf = time_so_far - timedelta(minutes=LIVE_STATS["pause_min"])
     return corrected_tsf
 
@@ -469,7 +471,7 @@ def calc_timer() -> str:
     seconds = int(remaining.total_seconds()) % 60
     time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
     if LIVE_STATS["pause_start"] is not None:
-        pause_format = SETTINGS["fmt"]["countdown_pause"]
+        pause_format = SETTINGS.fmt.countdown_pause
         return pause_format.format(clock=time_str)
     else:
         return time_str
@@ -477,9 +479,9 @@ def calc_timer() -> str:
 
 def handle_end(initial_run: bool = False):
     if initial_run and not LIVE_STATS["end"]:
-        if SETTINGS["end"]["max_minutes"]:
-            assert SETTINGS["end"]["max_minutes"] > SETTINGS["start"]["minutes"]
-        end_file = Path(SETTINGS["db"]["end_mark"])
+        if SETTINGS.end.max_minutes:
+            assert SETTINGS.end.max_minutes > SETTINGS.start.minutes
+        end_file = Path(SETTINGS.db.end_mark)
         if end_file.is_file():
             LIVE_STATS["end"] = toml.load(end_file)
             assert "end_min" in LIVE_STATS["end"] and "end_ts" in LIVE_STATS["end"]
@@ -495,9 +497,9 @@ def handle_end(initial_run: bool = False):
     LIVE_STATS["end"] = {
         "end_min": available_time.total_seconds() / 60,
         "end_ts": end_time,
-        "ended_at_max": calc_chat_minutes() >= SETTINGS["end"].get("max_minutes", 0),
+        "ended_at_max": calc_chat_minutes() >= SETTINGS.end.max_minutes,
     }
-    Path(SETTINGS["db"]["end_mark"]).write_text(toml.dumps(LIVE_STATS["end"]))
+    Path(SETTINGS.db.end_mark).write_text(toml.dumps(LIVE_STATS["end"]))
 
 
 async def channel_offline(_event):
@@ -506,10 +508,10 @@ async def channel_offline(_event):
         log.info(
             f"Channel went offline at {now.isoformat()}, already was paused at {LIVE_STATS['pause_start'].isoformat()}"
         )
-    elif SETTINGS["twitch"]["pause_on_offline"]:
+    elif SETTINGS.twitch.pause_on_offline:
         LIVE_STATS["pause_start"] = now
         save_pause_file()
-        with open(SETTINGS["db"]["pause_log"], "a") as f:
+        with open(SETTINGS.db.pause_log, "a") as f:
             f.write(f"{now.isoformat()}\t{LIVE_STATS['pause_min']:.2f}\tPause Started because channel went offline\n")
         log.info(f"Channel went offline at {now.isoformat()}, pause started")
     else:
@@ -518,12 +520,12 @@ async def channel_offline(_event):
 
 async def channel_online(_event):
     now = datetime.now(tz=timezone.utc)
-    if LIVE_STATS["pause_start"] and SETTINGS["twitch"]["unpause_on_online"]:
+    if LIVE_STATS["pause_start"] and SETTINGS.twitch.unpause_on_online:
         added_min = (now - LIVE_STATS["pause_start"]).total_seconds() / 60
         LIVE_STATS["pause_min"] += added_min
         LIVE_STATS["pause_start"] = None
         save_pause_file()
-        with open(SETTINGS["db"]["pause_log"], "a") as f:
+        with open(SETTINGS.db.pause_log, "a") as f:
             f.write(
                 f"{now.isoformat()}\t{LIVE_STATS['pause_min']:.2f}"
                 f"\tPause Ended because channel went online & added {added_min:.2f}\n"
@@ -545,15 +547,15 @@ async def channel_online(_event):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # set up twitch api instance and add user authentication with some scopes
-    twitch = await Twitch(SETTINGS["twitch"]["app_id"], SETTINGS["twitch"]["app_secret"])
-    usr_token_file = Path(SETTINGS["twitch"]["user_token_file"])
+    twitch = await Twitch(SETTINGS.twitch.app_id, SETTINGS.twitch.app_secret)
+    usr_token_file = Path(SETTINGS.twitch.user_token_file)
     if usr_token_file.is_file():
         user_auth = toml.load(usr_token_file)
         token, refresh_token = user_auth["token"], user_auth.get("refresh_token")
         if not refresh_token:
             twitch.auto_refresh_auth = False
     else:
-        auth = UserAuthenticator(twitch, USER_SCOPE, url=SETTINGS["twitch"]["auth_url"])
+        auth = UserAuthenticator(twitch, USER_SCOPE, url=SETTINGS.twitch.auth_url)
         token, refresh_token = await auth.authenticate(browser_name="google-chrome")
         usr_token_file.write_text(toml.dumps({"token": token, "refresh_token": refresh_token}))
     try:
@@ -563,7 +565,7 @@ async def lifespan(app: FastAPI):
         raise
 
     # Get id for twitch channel
-    channel = await first(twitch.get_users(logins=[SETTINGS["twitch"]["channel"]]))
+    channel = await first(twitch.get_users(logins=[SETTINGS.twitch.channel]))
 
     # create eventsub websocket instance and start the client.
     eventsub = EventSubWebsocket(twitch)
@@ -584,7 +586,7 @@ async def lifespan(app: FastAPI):
     chat.register_event(ChatEvent.RAID, on_raid)
 
     # you can directly register commands and their handlers
-    if SETTINGS["twitch"].get("enable_cmds", True):
+    if SETTINGS.twitch.enable_cmds:
         chat.register_command("tpause", pause_command)
         chat.register_command("tresume", resume_command)
         chat.register_command("tadd", add_time_command)
@@ -652,7 +654,7 @@ async def get_events(timezone: Optional[str] = None):
             return f"<html><body><xmp>{e}</xmp></body></html>"
 
     events_per_day = {}
-    with Path(SETTINGS["db"]["events"]).open("r", encoding="utf-8") as f:
+    with Path(SETTINGS.db.events).open("r", encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=",")
         assert reader.fieldnames == CSV_COLUMNS
         for row in reader:
@@ -700,7 +702,7 @@ websocket_html = """
 
 @app.get("/live", response_class=HTMLResponse)
 async def get():
-    return websocket_html.format(name="countdown", css=SETTINGS["output"]["css"], hostname=SETTINGS["output"]["public"])
+    return websocket_html.format(name="countdown", css=SETTINGS.output.css, hostname=SETTINGS.output.public)
 
 
 @app.websocket("/ws")
@@ -734,42 +736,39 @@ def load_pause(file_path: Path):
     log.debug(f"Loaded Pause file and got {LIVE_STATS['pause_min']=} {LIVE_STATS['pause_start']=}")
 
 
-def regex_compile(settings: dict) -> List[Tuple[str, re.Pattern, str]]:
+def regex_compile(settings) -> List[Tuple[str, re.Pattern, str]]:
     msg_magic = []
-    for user, obj in settings["bits"].get("msg", {}).items():
-        msg_magic.append((user, re.compile(obj["regex"]), "bits"))
-    for user, obj in settings["tips"].get("msg", {}).items():
-        msg_magic.append((user, re.compile(obj["regex"]), "tips"))
+    for user, obj in settings.bits.msg.items():
+        msg_magic.append((user, re.compile(obj.regex), "bits"))
+    for user, obj in settings.tips.msg.items():
+        msg_magic.append((user, re.compile(obj.regex), "tips"))
     log.debug(f"Loaded regex matches: {msg_magic}")
     return msg_magic
 
 
 def add_streamer_to_admin():
-    streamer = SETTINGS["twitch"]["channel"].lower()
+    streamer = SETTINGS.twitch.channel.lower()
     found_streamer = False
-    for i, name in enumerate(SETTINGS["twitch"]["admin_users"]):
+    for i, name in enumerate(SETTINGS.twitch.admin_users):
         if streamer == name.lower():
             found_streamer = True
-        SETTINGS["twitch"]["admin_users"][i] = name.lower()
+        SETTINGS.twitch.admin_users[i] = name.lower()
     if not found_streamer:
-        SETTINGS["twitch"]["admin_users"].append(streamer)
+        SETTINGS.twitch.admin_users.append(streamer)
 
 
 if __name__ == "__main__":
-    SETTINGS = toml.load("settings.toml")
-    if isinstance(SETTINGS["start"]["time"], str):
-        SETTINGS["start"]["time"] = datetime.fromisoformat(SETTINGS["start"]["time"])
-    load_pause(Path(SETTINGS["db"]["pause"]))
+    load_pause(Path(SETTINGS.db.pause))
     MSG_MAGIC = regex_compile(SETTINGS)
-    load_csv(Path(SETTINGS["db"]["events"]))
+    load_csv(Path(SETTINGS.db.events))
     handle_end(initial_run=True)
     log.info(f"Finished loading files and got {LIVE_STATS=}")
     add_streamer_to_admin()
-    log.info(f'Users who can run cmds in addition to mods {SETTINGS["twitch"]["admin_users"]}')
+    log.info(f"Users who can run cmds in addition to mods {SETTINGS.twitch.admin_users}")
 
     import uvicorn
 
     try:
-        uvicorn.run(app, host=SETTINGS["output"]["listen"], port=SETTINGS["output"]["port"])
+        uvicorn.run(app, host=SETTINGS.output.listen, port=SETTINGS.output.port)
     except KeyboardInterrupt:
         pass
