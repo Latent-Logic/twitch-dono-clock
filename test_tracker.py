@@ -78,7 +78,6 @@ async def on_message(msg: ChatMessage):
         log.info(f"in {msg.room.name}, {msg.user.name} sent bits: {msg.bits}")
         LIVE_STATS["donos"]["bits"] += int(msg.bits)
         append_csv(
-            Path(SETTINGS.db.events),
             ts=msg.sent_timestamp,
             user=msg.user.display_name,
             target=None,
@@ -96,7 +95,6 @@ async def on_message(msg: ChatMessage):
                     amount = float(match["amount"])
                 LIVE_STATS["donos"][target] += amount
                 append_csv(
-                    Path(SETTINGS.db.events),
                     ts=msg.sent_timestamp,
                     user=match["user"],
                     target=None,
@@ -127,7 +125,6 @@ async def on_sub(sub: ChatSub):
     tier = SETTINGS.subs.plan[sub.sub_plan]
     LIVE_STATS["donos"]["subs"][tier] += months
     append_csv(
-        Path(SETTINGS.db.events),
         ts=sub._parsed["tags"]["tmi-sent-ts"],
         user=sub._parsed["tags"]["display-name"],
         target=sub._parsed["tags"].get("msg-param-recipient-display-name"),
@@ -358,7 +355,6 @@ async def add_tip_command(cmd: ChatCommand):
     log.info(f"in {cmd.room.name}, {cmd.user.name} added tip from {giver}: {amount:.02f} w/ type {reason}")
     LIVE_STATS["donos"]["tips"] += amount
     append_csv(
-        Path(SETTINGS.db.events),
         ts=cmd.sent_timestamp,
         user=giver,
         target=reason,
@@ -372,7 +368,8 @@ async def add_tip_command(cmd: ChatCommand):
 
 
 # Load CSV log file for refreshing stats
-def load_csv(file_path: Path):
+def load_csv():
+    file_path = Path(SETTINGS.db.events)
     if not file_path.is_file():
         log.warning(f"No CSV file found at {file_path}, creating one")
         file_path.parent.mkdir(exist_ok=True, parents=True)
@@ -396,7 +393,8 @@ def load_csv(file_path: Path):
     log.debug(f"Loaded CSV file and got: {LIVE_STATS['donos']=}")
 
 
-def append_csv(file_path: Path, ts: int, user: str, type: str, amount: float, target: Optional[str] = None):
+def append_csv(ts: int, user: str, type: str, amount: float, target: Optional[str] = None):
+    file_path = Path(SETTINGS.db.events)
     if not file_path.is_file():
         raise FileNotFoundError(f"No CSV file found at {file_path}, Should have been created earlier?!?")
     with file_path.open("a", encoding="utf-8") as f:
@@ -760,7 +758,7 @@ def add_streamer_to_admin():
 if __name__ == "__main__":
     load_pause(Path(SETTINGS.db.pause))
     MSG_MAGIC = regex_compile(SETTINGS)
-    load_csv(Path(SETTINGS.db.events))
+    load_csv()
     handle_end(initial_run=True)
     log.info(f"Finished loading files and got {LIVE_STATS=}")
     add_streamer_to_admin()
