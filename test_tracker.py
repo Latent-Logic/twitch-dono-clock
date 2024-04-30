@@ -744,24 +744,12 @@ def regex_compile(settings) -> List[Tuple[str, re.Pattern, str]]:
     return msg_magic
 
 
-def add_streamer_to_admin():
-    streamer = SETTINGS.twitch.channel.lower()
-    found_streamer = False
-    for i, name in enumerate(SETTINGS.twitch.admin_users):
-        if streamer == name.lower():
-            found_streamer = True
-        SETTINGS.twitch.admin_users[i] = name.lower()
-    if not found_streamer:
-        SETTINGS.twitch.admin_users.append(streamer)
-
-
 if __name__ == "__main__":
     load_pause(Path(SETTINGS.db.pause))
     MSG_MAGIC = regex_compile(SETTINGS)
     load_csv()
     handle_end(initial_run=True)
     log.info(f"Finished loading files and got {LIVE_STATS=}")
-    add_streamer_to_admin()
     log.info(f"Users who can run cmds in addition to mods {SETTINGS.twitch.admin_users}")
 
     import uvicorn

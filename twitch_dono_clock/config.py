@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Dict, List
 
 import toml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class SetTwitch(BaseModel):
@@ -15,6 +15,19 @@ class SetTwitch(BaseModel):
     admin_users: List[str]
     pause_on_offline: bool
     unpause_on_online: bool
+
+    @model_validator(mode="after")
+    def streamer_in_admin(self):
+        """Make sure streamer is in admin_users & that all admin_users are lowercase"""
+        streamer = self.channel.lower()
+        found_streamer = False
+        for i, name in enumerate(self.admin_users):
+            if streamer == name.lower():
+                found_streamer = True
+            self.admin_users[i] = name.lower()
+        if not found_streamer:
+            self.admin_users.append(streamer)
+        return self
 
 
 class SetStart(BaseModel):
