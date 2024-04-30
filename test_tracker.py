@@ -2,11 +2,10 @@
 import asyncio
 import csv
 import logging
-import re
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import toml
@@ -84,7 +83,7 @@ async def on_message(msg: ChatMessage):
             type="bits",
             amount=msg.bits,
         )
-    for user, regex, target in MSG_MAGIC:
+    for user, regex, target in SETTINGS.compiled_re:
         if msg.user.name.lower() == user.lower():
             match = regex.match(msg.text)
             if match:
@@ -734,19 +733,8 @@ def load_pause(file_path: Path):
     log.debug(f"Loaded Pause file and got {LIVE_STATS['pause_min']=} {LIVE_STATS['pause_start']=}")
 
 
-def regex_compile(settings) -> List[Tuple[str, re.Pattern, str]]:
-    msg_magic = []
-    for user, obj in settings.bits.msg.items():
-        msg_magic.append((user, re.compile(obj.regex), "bits"))
-    for user, obj in settings.tips.msg.items():
-        msg_magic.append((user, re.compile(obj.regex), "tips"))
-    log.debug(f"Loaded regex matches: {msg_magic}")
-    return msg_magic
-
-
 if __name__ == "__main__":
     load_pause(Path(SETTINGS.db.pause))
-    MSG_MAGIC = regex_compile(SETTINGS)
     load_csv()
     handle_end(initial_run=True)
     log.info(f"Finished loading files and got {LIVE_STATS=}")

@@ -1,5 +1,6 @@
+import re
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import toml
 from pydantic import BaseModel, Field, model_validator
@@ -56,6 +57,10 @@ class SetOutput(BaseModel):
 class SetRegex(BaseModel):
     regex: str
 
+    @property
+    def re(self) -> re.Pattern:
+        return re.compile(self.regex)
+
 
 class SetBitsTips(BaseModel):
     min: float
@@ -101,6 +106,20 @@ class Settings(BaseModel):
     bits: SetBitsTips
     subs: SetSubs
     fmt: SetFmt
+
+    _compiled_re: List[Tuple[str, re.Pattern, str]] = []
+
+    @model_validator(mode="after")
+    def compile_regex(self):
+        for user, obj in self.bits.msg.items():
+            self._compiled_re.append((user, obj.re, "bits"))
+        for user, obj in self.tips.msg.items():
+            self._compiled_re.append((user, obj.re, "tips"))
+        return self
+
+    @property
+    def compiled_re(self) -> List[Tuple[str, re.Pattern, str]]:
+        return self._compiled_re
 
 
 try:
