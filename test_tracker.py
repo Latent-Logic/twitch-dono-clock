@@ -1,6 +1,7 @@
 """Twitch donothon clock based on reading chat"""
 import asyncio
 import csv
+import json
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
@@ -604,6 +605,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+
+class JSONResponse(JSONResponse):
+    def render(self, content) -> bytes:
+        return json.dumps(content, ensure_ascii=False, allow_nan=False, indent=4, separators=(",", ":")).encode("utf-8")
 
 
 @app.get("/live_stats", response_class=JSONResponse)
