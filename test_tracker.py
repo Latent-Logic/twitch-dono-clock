@@ -566,10 +566,12 @@ async def lifespan(app: FastAPI):
     channel = await first(twitch.get_users(logins=[SETTINGS.twitch.channel]))
 
     # create eventsub websocket instance and start the client.
-    eventsub = EventSubWebsocket(twitch)
-    eventsub.start()
-    await eventsub.listen_stream_offline(channel.id, channel_offline)
-    await eventsub.listen_stream_online(channel.id, channel_online)
+    eventsub = None
+    if SETTINGS.twitch.eventsub:
+        eventsub = EventSubWebsocket(twitch)
+        eventsub.start()
+        await eventsub.listen_stream_offline(channel.id, channel_offline)
+        await eventsub.listen_stream_online(channel.id, channel_online)
 
     # create chat instance
     chat = await Chat(twitch, callback_loop=asyncio.get_running_loop(), no_message_reset_time=6)
@@ -597,7 +599,8 @@ async def lifespan(app: FastAPI):
 
     yield  # Run FastAPI stuff
 
-    await eventsub.stop()
+    if eventsub:
+        await eventsub.stop()
     # now we can close the chat bot and the twitch api client
     chat.stop()
     await twitch.close()

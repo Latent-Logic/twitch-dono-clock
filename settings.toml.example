@@ -6,6 +6,7 @@ auth_url = "http://localhost:17563/oauth2/authorize"  # Twitch OAuth2 authorizat
 user_token_file = "usr_token.toml"  # Twitch user auth file
 enable_cmds = true  # Set to false to disable listening for commands
 admin_users = ["latentlogic"]  # Users who can always run commands
+eventsub = true
 pause_on_offline = true  # Auto pause when channel goes offline
 unpause_on_online = false  # Auto resume timer when channel goes online
 

@@ -14,6 +14,7 @@ class SetTwitch(BaseModel):
     user_token_file: str
     enable_cmds: bool
     admin_users: List[str]
+    eventsub: bool
     pause_on_offline: bool
     unpause_on_online: bool
 
