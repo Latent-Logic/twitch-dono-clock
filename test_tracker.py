@@ -149,8 +149,9 @@ async def spin_done_command(cmd: ChatCommand):
     fmt_dict = {
         "user": cmd.user.name,
         "cmd": "tspin",
+        "spins_done": LIVE_STATS["spin_done"],
         "spins_to_do": int(calc_dollars() // 25),
-        "old_spin_done": LIVE_STATS["spin_done"],
+        "old_spins_done": LIVE_STATS["spin_done"],
     }
     if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
         log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
@@ -158,16 +159,21 @@ async def spin_done_command(cmd: ChatCommand):
     parameters = cmd.parameter.split()
     if not parameters:
         new_total = LIVE_STATS["spin_done"] + 1
-        fmt_dict["spin_done"] = new_total
-        response = "Spin counter increased by 1, now {spin_done}/{spins_to_do}".format(**fmt_dict)
+        fmt_dict["spins_done"] = new_total
+        response = "Spin counter increased by 1, now {spins_done}/{spins_to_do}".format(**fmt_dict)
     elif len(parameters) == 1:
+        if parameters[0].lower() == "check":
+            response = "Spin counter is at {spins_done}/{spins_to_do}".format(**fmt_dict)
+            log.info(response)
+            await cmd.reply(response)
+            return
         try:
             new_total = int(parameters[0])
         except ValueError:
             await cmd.reply(f"The new total `{parameters[0]}` must be parsable as an integer")
             return
-        fmt_dict["spin_done"] = new_total
-        response = "Spin counter set from {old_spin_done} to {spin_done} out of {spins_to_do}".format(**fmt_dict)
+        fmt_dict["spins_done"] = new_total
+        response = "Spin counter set from {old_spins_done} to {spins_done} out of {spins_to_do}".format(**fmt_dict)
     else:
         await cmd.reply("Command format !{cmd} <new_total>".format(**fmt_dict))
         return
