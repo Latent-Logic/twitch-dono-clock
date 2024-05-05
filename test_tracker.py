@@ -644,7 +644,14 @@ async def get_events(timezone: Optional[str] = None):
 
 
 @app.get("/donors", response_class=HTMLResponse)
-async def get_donors():
+async def get_donors(sort: str = "total"):
+    donor_keys = {
+        "name": (lambda x: x["name"].lower(), False),
+        "total": (lambda x: x["total"], True),
+        **{k: (lambda x: x[k], True) for k in CSV_TYPES},
+    }
+    if sort not in donor_keys:
+        return f"<html><body><xmp>{sort} not in {tuple(donor_keys.keys())}</xmp></body></html>"
     donor_db = {}
     with Path(SETTINGS.db.events).open("r", encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=",")
@@ -658,9 +665,9 @@ async def get_donors():
             user_db["total"] += amount * SETTINGS.get_value(row["type"])
 
     build_table = "<table>\n"
-    build_table += "<tr>" + "".join(f"<th>{s}</th>" for s in ("name", "total", *CSV_TYPES)) + "</tr>\n"
-    for row in sorted(donor_db.values(), key=lambda x: x["total"], reverse=True):
-        build_table += "<tr>" + "".join(f"<td>{row[s]}</td>" for s in ("name", "total", *CSV_TYPES)) + "</tr>\n"
+    build_table += "<tr>" + "".join(f"<th>{s}</th>" for s in donor_keys) + "</tr>\n"
+    for row in sorted(donor_db.values(), key=donor_keys[sort][0], reverse=donor_keys[sort][1]):
+        build_table += "<tr>" + "".join(f"<td>{row[s]}</td>" for s in donor_keys) + "</tr>\n"
     build_table += "</table>\n"
     style = """table {border: 2px solid rgb(140 140 140);}
     th,td {border: 1px solid rgb(160 160 160);}"""
