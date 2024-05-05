@@ -26,14 +26,18 @@ from twitch_dono_clock.pause import Pause
 
 # "chat:read chat:edit"
 USER_SCOPE = [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT]
+DONOS = "donos"
+SUBS, T1, T2, T3 = "subs", "t1", "t2", "t3"
 CSV_COLUMNS = ["time", "user", "target", "type", "amount"]
+CSV_TYPES = ["bits", "tips", f"{SUBS}_{T1}", f"{SUBS}_{T2}", f"{SUBS}_{T3}"]
+BITS, TIPS, SUBS_T1, SUBS_T2, SUBS_T3 = CSV_TYPES
 log = logging.getLogger("test_tracker")
 
 LIVE_STATS = {
-    "donos": {
-        "bits": 0,
-        "subs": {"t1": 0, "t2": 0, "t3": 0},
-        "tips": 0,
+    DONOS: {
+        BITS: 0,
+        SUBS: {T1: 0, T2: 0, T3: 0},
+        TIPS: 0,
     },
     "end": {},
 }
@@ -75,12 +79,12 @@ async def on_message(msg: ChatMessage):
     log.debug(f"{msg.user.name=} {msg._parsed=}")
     if msg.bits:
         log.info(f"in {msg.room.name}, {msg.user.name} sent bits: {msg.bits}")
-        LIVE_STATS["donos"]["bits"] += int(msg.bits)
+        LIVE_STATS[DONOS][BITS] += int(msg.bits)
         append_csv(
             ts=msg.sent_timestamp,
             user=msg.user.display_name,
             target=None,
-            type="bits",
+            type=BITS,
             amount=msg.bits,
         )
     for user, regex, target in SETTINGS.compiled_re:
@@ -88,11 +92,11 @@ async def on_message(msg: ChatMessage):
             match = regex.match(msg.text)
             if match:
                 log.info(f"in {msg.room.name}, {match['user']} sent {target}: {match['amount']}")
-                if target == "bits":
+                if target == BITS:
                     amount = int(match["amount"])
-                elif target == "tips":
+                elif target == TIPS:
                     amount = float(match["amount"])
-                LIVE_STATS["donos"][target] += amount
+                LIVE_STATS[DONOS][target] += amount
                 append_csv(
                     ts=msg.sent_timestamp,
                     user=match["user"],
@@ -122,7 +126,7 @@ async def on_sub(sub: ChatSub):
     log.info(log_msg)
     log.debug(f"{sub._parsed=}")
     tier = SETTINGS.subs.plan[sub.sub_plan]
-    LIVE_STATS["donos"]["subs"][tier] += months
+    LIVE_STATS[DONOS][SUBS][tier] += months
     append_csv(
         ts=sub._parsed["tags"]["tmi-sent-ts"],
         user=sub._parsed["tags"]["display-name"],
@@ -282,12 +286,12 @@ async def raised_command(cmd: ChatCommand):
         "end_min": LIVE_STATS["end"].get("end_min"),
         "total_value": calc_dollars(),
         "countdown": calc_timer(),
-        "bits": LIVE_STATS["donos"]["bits"],
-        "tips": LIVE_STATS["donos"]["tips"],
-        "subs": sum(LIVE_STATS["donos"]["subs"].values()),
-        "subs_t1": LIVE_STATS["donos"]["subs"]["t1"],
-        "subs_t2": LIVE_STATS["donos"]["subs"]["t2"],
-        "subs_t3": LIVE_STATS["donos"]["subs"]["t3"],
+        "bits": LIVE_STATS[DONOS][BITS],
+        "tips": LIVE_STATS[DONOS][TIPS],
+        "subs": sum(LIVE_STATS[DONOS][SUBS].values()),
+        "subs_t1": LIVE_STATS[DONOS][SUBS][T1],
+        "subs_t2": LIVE_STATS[DONOS][SUBS][T2],
+        "subs_t3": LIVE_STATS[DONOS][SUBS][T2],
         "pause_min": Pause().minutes,
         "pause_start": Pause().start or "Not Currently Paused",
     }
@@ -326,12 +330,12 @@ async def add_tip_command(cmd: ChatCommand):
         await cmd.reply("Parameter [amount] must be parsable as numbers to be recorded")
         return
     log.info(f"in {cmd.room.name}, {cmd.user.name} added tip from {giver}: {amount:.02f} w/ type {reason}")
-    LIVE_STATS["donos"]["tips"] += amount
+    LIVE_STATS[DONOS][TIPS] += amount
     append_csv(
         ts=cmd.sent_timestamp,
         user=giver,
         target=reason,
-        type="tips",
+        type=TIPS,
         amount=amount,
     )
     if reason:
@@ -352,17 +356,17 @@ def load_csv():
         reader = csv.DictReader(f, delimiter=",")
         assert reader.fieldnames == CSV_COLUMNS
         for row in reader:
-            if row["type"] == "bits":
-                LIVE_STATS["donos"]["bits"] += int(row["amount"])
-            elif row["type"] in {"direct", "tips"}:
-                LIVE_STATS["donos"]["tips"] += float(row["amount"])
+            if row["type"] == BITS:
+                LIVE_STATS[DONOS][BITS] += int(row["amount"])
+            elif row["type"] == TIPS:
+                LIVE_STATS[DONOS][TIPS] += float(row["amount"])
             elif row["type"].startswith("subs_"):
                 if row["type"].endswith("_t1"):
-                    LIVE_STATS["donos"]["subs"]["t1"] += int(row["amount"])
+                    LIVE_STATS[DONOS][SUBS][T1] += int(row["amount"])
                 elif row["type"].endswith("_t2"):
-                    LIVE_STATS["donos"]["subs"]["t2"] += int(row["amount"])
+                    LIVE_STATS[DONOS][SUBS][T2] += int(row["amount"])
                 elif row["type"].endswith("_t3"):
-                    LIVE_STATS["donos"]["subs"]["t3"] += int(row["amount"])
+                    LIVE_STATS[DONOS][SUBS][T3] += int(row["amount"])
     log.debug(f"Loaded CSV file and got: {LIVE_STATS['donos']=}")
 
 
@@ -379,13 +383,13 @@ def append_csv(ts: int, user: str, type: str, amount: float, target: Optional[st
 def calc_chat_minutes() -> float:
     """Total number of minutes paid for by chat"""
     minutes = 0
-    donos = LIVE_STATS["donos"]
-    minutes += donos["bits"] * SETTINGS.bits.min
-    minutes += donos["tips"] * SETTINGS.tips.min
-    subs = donos["subs"]
-    minutes += subs["t1"] * SETTINGS.subs.tier.t1.min
-    minutes += subs["t2"] * SETTINGS.subs.tier.t2.min
-    minutes += subs["t3"] * SETTINGS.subs.tier.t3.min
+    donos = LIVE_STATS[DONOS]
+    minutes += donos[BITS] * SETTINGS.bits.min
+    minutes += donos[TIPS] * SETTINGS.tips.min
+    subs = donos[SUBS]
+    minutes += subs[T1] * SETTINGS.subs.tier.t1.min
+    minutes += subs[T2] * SETTINGS.subs.tier.t2.min
+    minutes += subs[T3] * SETTINGS.subs.tier.t3.min
     return minutes
 
 
@@ -411,13 +415,13 @@ def calc_minutes_over() -> float:
 def calc_dollars() -> float:
     """Total financial gain from chat donations"""
     dollars = 0
-    donos = LIVE_STATS["donos"]
-    dollars += donos["bits"] * SETTINGS.bits.money
-    dollars += donos["tips"] * SETTINGS.tips.money
-    subs = donos["subs"]
-    dollars += subs["t1"] * SETTINGS.subs.tier.t1.money
-    dollars += subs["t2"] * SETTINGS.subs.tier.t2.money
-    dollars += subs["t3"] * SETTINGS.subs.tier.t3.money
+    donos = LIVE_STATS[DONOS]
+    dollars += donos[BITS] * SETTINGS.bits.money
+    dollars += donos[TIPS] * SETTINGS.tips.money
+    subs = donos[SUBS]
+    dollars += subs[T1] * SETTINGS.subs.tier.t1.money
+    dollars += subs[T2] * SETTINGS.subs.tier.t2.money
+    dollars += subs[T3] * SETTINGS.subs.tier.t3.money
     return dollars
 
 
@@ -583,19 +587,17 @@ async def get_live_stats():
 
 @app.get("/live_stats/bits", response_class=PlainTextResponse)
 async def get_live_stats_bits():
-    return f'{LIVE_STATS["donos"]["bits"]}'
+    return f"{LIVE_STATS[DONOS][BITS]}"
 
 
 @app.get("/live_stats/tips", response_class=PlainTextResponse)
 async def get_live_stats_tips():
-    return f'${LIVE_STATS["donos"]["tips"]:.02f}'
+    return f"${LIVE_STATS[DONOS][TIPS]:.02f}"
 
 
 @app.get("/live_stats/subs", response_class=PlainTextResponse)
 async def get_live_stats_subs():
-    return str(
-        LIVE_STATS["donos"]["subs"]["t1"] + LIVE_STATS["donos"]["subs"]["t2"] + LIVE_STATS["donos"]["subs"]["t3"]
-    )
+    return str(LIVE_STATS[DONOS][SUBS][T1] + LIVE_STATS[DONOS][SUBS][T2] + LIVE_STATS[DONOS][SUBS][T3])
 
 
 @app.get("/live_stats/total_value", response_class=PlainTextResponse)
