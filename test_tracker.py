@@ -22,6 +22,7 @@ from twitchAPI.type import AuthScope, ChatEvent, TwitchAPIException
 from websockets import ConnectionClosedOK
 
 from twitch_dono_clock.config import SETTINGS
+from twitch_dono_clock.pause import Pause
 
 # "chat:read chat:edit"
 USER_SCOPE = [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT]
@@ -29,8 +30,6 @@ CSV_COLUMNS = ["time", "user", "target", "type", "amount"]
 log = logging.getLogger("test_tracker")
 
 LIVE_STATS = {
-    "pause_min": 0.0,
-    "pause_start": None,  # type: Optional[datetime]
     "donos": {
         "bits": 0,
         "subs": {"t1": 0, "t2": 0, "t3": 0},
@@ -141,20 +140,12 @@ async def on_raid(raid: dict):
     log.debug(f"{raid}")
 
 
-def save_pause_file():
-    pause_min, pause_start = LIVE_STATS["pause_min"], LIVE_STATS["pause_start"]
-    if pause_start:
-        Path(SETTINGS.db.pause).write_text(f"{pause_min:.02f};{pause_start.isoformat()}")
-    else:
-        Path(SETTINGS.db.pause).write_text(f"{LIVE_STATS['pause_min']:.02f}")
-
-
 async def pause_command(cmd: ChatCommand):
     fmt_dict = {
         "user": cmd.user.name,
         "cmd": "tpause",
-        "pause_min": LIVE_STATS["pause_min"],
-        "pause_start": LIVE_STATS["pause_start"],
+        "pause_min": Pause().minutes,
+        "pause_start": Pause().start,
         "end_ts": LIVE_STATS["end"].get("end_ts"),
         "end_min": LIVE_STATS["end"].get("end_min"),
     }
@@ -164,15 +155,11 @@ async def pause_command(cmd: ChatCommand):
     elif LIVE_STATS["end"]:
         await cmd.reply(SETTINGS.fmt.cmd_after_end.format(**fmt_dict))
         return
-    if LIVE_STATS["pause_start"] is not None:
+    if Pause().is_paused():
         await cmd.reply(SETTINGS.fmt.tpause_failure.format(**fmt_dict))
     else:
-        pause_start = datetime.now(tz=timezone.utc)
-        LIVE_STATS["pause_start"] = pause_start
-        fmt_dict["pause_start"] = pause_start
-        save_pause_file()
-        with open(SETTINGS.db.pause_log, "a") as f:
-            f.write(f"{pause_start.isoformat()}\t{LIVE_STATS['pause_min']:.2f}\tPause Started\n")
+        Pause().start_pause("!{cmd}".format(**fmt_dict))
+        fmt_dict["pause_start"] = Pause().start
         log.info(SETTINGS.fmt.tpause_success.format(**fmt_dict))
         await cmd.reply(SETTINGS.fmt.tpause_success.format(**fmt_dict))
 
@@ -181,25 +168,19 @@ async def resume_command(cmd: ChatCommand):
     fmt_dict = {
         "user": cmd.user.name,
         "cmd": "tresume",
-        "pause_min": LIVE_STATS["pause_min"],
-        "pause_start": LIVE_STATS["pause_start"],
+        "pause_min": Pause().minutes,
+        "pause_start": Pause().start,
     }
     if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
         log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
         return
-    if LIVE_STATS["pause_start"] is None:
+    if not Pause().is_paused():
         await cmd.reply(SETTINGS.fmt.tresume_failure.format(**fmt_dict))
     else:
-        now = datetime.now(tz=timezone.utc)
-        added_min = (now - LIVE_STATS["pause_start"]).total_seconds() / 60
-        LIVE_STATS["pause_min"] += added_min
-        fmt_dict["pause_min"] = LIVE_STATS["pause_min"]
+        added_min = Pause().resume("!{cmd}".format(**fmt_dict))
+        fmt_dict["pause_min"] = Pause().minutes
         fmt_dict["added_min"] = added_min
         fmt_dict["pause_start"] = None
-        LIVE_STATS["pause_start"] = None
-        save_pause_file()
-        with open(SETTINGS.db.pause_log, "a") as f:
-            f.write(f"{now.isoformat()}\t{LIVE_STATS['pause_min']:.2f}\tPause Ended & added {added_min:.2f}\n")
         log.info(SETTINGS.fmt.tresume_success.format(**fmt_dict))
         await cmd.reply(SETTINGS.fmt.tresume_success.format(**fmt_dict))
 
@@ -208,8 +189,8 @@ async def parse_time_from_cmd(cmd: ChatCommand, cmd_name: str):
     fmt_dict = {
         "user": cmd.user.name,
         "cmd": cmd_name,
-        "pause_min": LIVE_STATS["pause_min"],
-        "pause_start": LIVE_STATS["pause_start"],
+        "pause_min": Pause().minutes,
+        "pause_start": Pause().start,
         "end_ts": LIVE_STATS["end"].get("end_ts"),
         "end_min": LIVE_STATS["end"].get("end_min"),
     }
@@ -255,15 +236,11 @@ async def add_time_command(cmd: ChatCommand):
     fmt_dict = {
         "user": cmd.user.name,
         "cmd": "tadd",
-        "pause_min": LIVE_STATS["pause_min"],
-        "pause_start": LIVE_STATS["pause_start"],
+        "pause_min": Pause().minutes,
+        "pause_start": Pause().start,
         "pause_delta": minutes,
     }
-    LIVE_STATS["pause_min"] += minutes
-    save_pause_file()
-    now = datetime.now(tz=timezone.utc)
-    with open(SETTINGS.db.pause_log, "a") as f:
-        f.write(f"{now.isoformat()}\t{LIVE_STATS['pause_min']:.2f}\tPause time increased by !tadd {minutes}m\n")
+    Pause().pause_increase(minutes, "!{cmd}".format(**fmt_dict))
     log.info(SETTINGS.fmt.tadd_success.format(**fmt_dict))
     await cmd.reply(SETTINGS.fmt.tadd_success.format(**fmt_dict))
 
@@ -276,15 +253,11 @@ async def remove_time_command(cmd: ChatCommand):
     fmt_dict = {
         "user": cmd.user.name,
         "cmd": "tremove",
-        "pause_min": LIVE_STATS["pause_min"],
-        "pause_start": LIVE_STATS["pause_start"],
+        "pause_min": Pause().minutes,
+        "pause_start": Pause().start,
         "pause_delta": minutes,
     }
-    LIVE_STATS["pause_min"] -= minutes
-    save_pause_file()
-    now = datetime.now(tz=timezone.utc)
-    with open(SETTINGS.db.pause_log, "a") as f:
-        f.write(f"{now.isoformat()}\t{LIVE_STATS['pause_min']:.2f}\tPause time reduced by !tremove {minutes}m\n")
+    Pause().pause_reduce(minutes, "!{cmd}".format(**fmt_dict))
     log.info(SETTINGS.fmt.tremove_success.format(**fmt_dict))
     await cmd.reply(SETTINGS.fmt.tremove_success.format(**fmt_dict))
 
@@ -315,8 +288,8 @@ async def raised_command(cmd: ChatCommand):
         "subs_t1": LIVE_STATS["donos"]["subs"]["t1"],
         "subs_t2": LIVE_STATS["donos"]["subs"]["t2"],
         "subs_t3": LIVE_STATS["donos"]["subs"]["t3"],
-        "pause_min": LIVE_STATS["pause_min"],
-        "pause_start": LIVE_STATS["pause_start"] or "Not Currently Paused",
+        "pause_min": Pause().minutes,
+        "pause_start": Pause().start or "Not Currently Paused",
     }
     log.info(SETTINGS.fmt.traised_success.format(**fmt_dict))
     await cmd.reply(SETTINGS.fmt.traised_success.format(**fmt_dict))
@@ -452,12 +425,12 @@ def calc_time_so_far() -> timedelta:
     """How much time has been counted down since the start"""
     if LIVE_STATS["end"].get("end_ts"):
         cur_time = LIVE_STATS["end"]["end_ts"]
-    elif LIVE_STATS["pause_start"] is not None:
-        cur_time: datetime = LIVE_STATS["pause_start"]
+    elif Pause().is_paused():
+        cur_time: datetime = Pause().start
     else:
         cur_time = datetime.now(tz=timezone.utc)
     time_so_far = cur_time - SETTINGS.start.time
-    corrected_tsf = time_so_far - timedelta(minutes=LIVE_STATS["pause_min"])
+    corrected_tsf = time_so_far - timedelta(minutes=Pause().minutes)
     return corrected_tsf
 
 
@@ -468,7 +441,7 @@ def calc_timer() -> str:
     minutes = int(remaining.total_seconds() / 60) % 60
     seconds = int(remaining.total_seconds()) % 60
     time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-    if LIVE_STATS["pause_start"] is not None:
+    if Pause().is_paused():
         pause_format = SETTINGS.fmt.countdown_pause
         return pause_format.format(clock=time_str)
     else:
@@ -502,15 +475,10 @@ def handle_end(initial_run: bool = False):
 
 async def channel_offline(_event):
     now = datetime.now(tz=timezone.utc)
-    if LIVE_STATS["pause_start"] is not None:
-        log.info(
-            f"Channel went offline at {now.isoformat()}, already was paused at {LIVE_STATS['pause_start'].isoformat()}"
-        )
+    if Pause().is_paused():
+        log.info(f"Channel went offline at {now.isoformat()}, already was paused at {Pause().start.isoformat()}")
     elif SETTINGS.twitch.pause_on_offline:
-        LIVE_STATS["pause_start"] = now
-        save_pause_file()
-        with open(SETTINGS.db.pause_log, "a") as f:
-            f.write(f"{now.isoformat()}\t{LIVE_STATS['pause_min']:.2f}\tPause Started because channel went offline\n")
+        now = Pause().start_pause("channel went offline")
         log.info(f"Channel went offline at {now.isoformat()}, pause started")
     else:
         log.info(f"Channel went offline at {now.isoformat()}, but pause not started, timer is still running")
@@ -518,25 +486,16 @@ async def channel_offline(_event):
 
 async def channel_online(_event):
     now = datetime.now(tz=timezone.utc)
-    if LIVE_STATS["pause_start"] and SETTINGS.twitch.unpause_on_online:
-        added_min = (now - LIVE_STATS["pause_start"]).total_seconds() / 60
-        LIVE_STATS["pause_min"] += added_min
-        LIVE_STATS["pause_start"] = None
-        save_pause_file()
-        with open(SETTINGS.db.pause_log, "a") as f:
-            f.write(
-                f"{now.isoformat()}\t{LIVE_STATS['pause_min']:.2f}"
-                f"\tPause Ended because channel went online & added {added_min:.2f}\n"
-            )
+    if Pause().is_paused() and SETTINGS.twitch.unpause_on_online:
+        added_min = Pause().resume("channel went online")
         log.info(
             f"Pause resumed with an addition of {added_min:.02f} minutes"
-            f" for a total of {LIVE_STATS['pause_min']:.02f} minutes"
+            f" for a total of {Pause().minutes:.02f} minutes"
         )
-    elif LIVE_STATS["pause_start"]:
-        pause_start: datetime = LIVE_STATS["pause_start"]
-        delta = (now - pause_start).total_seconds() / 60.0
+    elif Pause().is_paused():
+        delta = (now - Pause().start).total_seconds() / 60.0
         log.info(
-            f"Channel went online at {now.isoformat()}, pause started at {pause_start.isoformat()} or {delta} min ago"
+            f"Channel went online at {now.isoformat()}, pause started at {Pause().start.isoformat()} or {delta} min ago"
         )
     else:
         log.info(f"Channel went online at {now.isoformat()}, but time was not paused?!?")
@@ -618,7 +577,8 @@ class JSONResponse(JSONResponse):
 @app.get("/live_stats", response_class=JSONResponse)
 async def get_live_stats():
     handle_end()
-    return jsonable_encoder(LIVE_STATS)
+    full_stats = {"pause_min": Pause().minutes, "pause_start": Pause().start, **LIVE_STATS}
+    return jsonable_encoder(full_stats)
 
 
 @app.get("/live_stats/bits", response_class=PlainTextResponse)
@@ -726,24 +686,8 @@ async def websocket_endpoint(websocket: WebSocket):
         pass
 
 
-def load_pause(file_path: Path):
-    if not file_path.is_file():
-        log.warning(f"No pause file found at {file_path}, creating one")
-        file_path.parent.mkdir(exist_ok=True, parents=True)
-        file_path.write_text("0.0")
-        return
-    raw = file_path.read_text()
-    if ";" in raw:
-        time, pause_time = raw.strip().split(";", maxsplit=1)
-        LIVE_STATS["pause_start"] = datetime.fromisoformat(pause_time)
-    else:
-        time = raw
-    LIVE_STATS["pause_min"] = float(time)
-    log.debug(f"Loaded Pause file and got {LIVE_STATS['pause_min']=} {LIVE_STATS['pause_start']=}")
-
-
 if __name__ == "__main__":
-    load_pause(Path(SETTINGS.db.pause))
+    Pause.load_pause()
     load_csv()
     handle_end(initial_run=True)
     log.info(f"Finished loading files and got {LIVE_STATS=}")
