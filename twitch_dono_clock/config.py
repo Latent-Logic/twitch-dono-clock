@@ -1,6 +1,6 @@
 import re
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 
 import toml
 from pydantic import BaseModel, Field, model_validator
@@ -121,6 +121,18 @@ class Settings(BaseModel):
     @property
     def compiled_re(self) -> List[Tuple[str, re.Pattern, str]]:
         return self._compiled_re
+
+    def get_value(self, type_name: str) -> Union[float, int]:
+        if type_name == "bits":
+            return self.bits.money
+        if type_name == "tips":
+            return self.tips.money
+        if type_name == "subs_t1":
+            return self.subs.tier.t1.money
+        if type_name == "subs_t2":
+            return self.subs.tier.t2.money
+        if type_name == "subs_t3":
+            return self.subs.tier.t3.money
 
 
 try:

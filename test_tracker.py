@@ -643,6 +643,30 @@ async def get_events(timezone: Optional[str] = None):
     return f"<html><head><style>{style}</style></head><body>{build_table}</body></html>"
 
 
+@app.get("/donors", response_class=HTMLResponse)
+async def get_donors():
+    donor_db = {}
+    with Path(SETTINGS.db.events).open("r", encoding="utf-8") as f:
+        reader = csv.DictReader(f, delimiter=",")
+        assert reader.fieldnames == CSV_COLUMNS
+        for row in reader:
+            user_db = donor_db.setdefault(
+                row["user"].lower(), {"name": row["user"], "total": 0, **{k: 0 for k in CSV_TYPES}}
+            )
+            amount = float(row["amount"]) if row["type"] == TIPS else int(row["amount"])
+            user_db[row["type"]] += amount
+            user_db["total"] += amount * SETTINGS.get_value(row["type"])
+
+    build_table = "<table>\n"
+    build_table += "<tr>" + "".join(f"<th>{s}</th>" for s in ("name", "total", *CSV_TYPES)) + "</tr>\n"
+    for row in sorted(donor_db.values(), key=lambda x: x["total"], reverse=True):
+        build_table += "<tr>" + "".join(f"<td>{row[s]}</td>" for s in ("name", "total", *CSV_TYPES)) + "</tr>\n"
+    build_table += "</table>\n"
+    style = """table {border: 2px solid rgb(140 140 140);}
+    th,td {border: 1px solid rgb(160 160 160);}"""
+    return f"<html><head><style>{style}</style></head><body>{build_table}</body></html>"
+
+
 websocket_html = """
 <!DOCTYPE html>
 <html>
