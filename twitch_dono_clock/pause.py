@@ -1,23 +1,12 @@
 import logging
-from abc import ABCMeta
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 from twitch_dono_clock.config import SETTINGS
+from twitch_dono_clock.utils import Singleton
 
 log = logging.getLogger(__name__)
-
-
-class Singleton(ABCMeta):
-    _instances = {}
-
-    def __call__(cls, *args, **kwargs):
-        try:
-            return cls._instances[cls]
-        except KeyError:
-            cls._instances[cls] = super().__call__(*args, **kwargs)
-            return cls._instances[cls]
 
 
 class Pause(metaclass=Singleton):
