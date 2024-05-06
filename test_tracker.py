@@ -23,6 +23,7 @@ from websockets import ConnectionClosedOK
 
 from twitch_dono_clock.config import SETTINGS
 from twitch_dono_clock.pause import Pause
+from twitch_dono_clock.spins import Spins
 
 # "chat:read chat:edit"
 USER_SCOPE = [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT]
@@ -39,7 +40,6 @@ LIVE_STATS = {
         SUBS: {T1: 0, T2: 0, T3: 0},
         TIPS: 0,
     },
-    "spin_done": 0,
     "end": {},
 }
 
@@ -149,17 +149,17 @@ async def spin_done_command(cmd: ChatCommand):
     fmt_dict = {
         "user": cmd.user.name,
         "cmd": "tspin",
-        "spins_done": LIVE_STATS["spin_done"],
-        "spins_to_do": int(calc_dollars() // 25),
-        "old_spins_done": LIVE_STATS["spin_done"],
+        "spins_done": Spins().performed,
+        "old_spins_done": Spins().performed,
+        "spins_to_do": int(Spins().calc_todo(calc_dollars())),
     }
     if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
         log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
         return
     parameters = cmd.parameter.split()
     if not parameters:
-        new_total = LIVE_STATS["spin_done"] + 1
-        fmt_dict["spins_done"] = new_total
+        Spins().spin_performed()
+        fmt_dict["spins_done"] = Spins().performed
         response = "Spin counter increased by 1, now {spins_done}/{spins_to_do}".format(**fmt_dict)
     elif len(parameters) == 1:
         if parameters[0].lower() == "check":
@@ -168,18 +168,15 @@ async def spin_done_command(cmd: ChatCommand):
             await cmd.reply(response)
             return
         try:
-            new_total = int(parameters[0])
+            Spins().set_performed(int(parameters[0]))
         except ValueError:
             await cmd.reply(f"The new total `{parameters[0]}` must be parsable as an integer")
             return
-        fmt_dict["spins_done"] = new_total
+        fmt_dict["spins_done"] = Spins().performed
         response = "Spin counter set from {old_spins_done} to {spins_done} out of {spins_to_do}".format(**fmt_dict)
     else:
-        await cmd.reply("Command format !{cmd} <new_total>".format(**fmt_dict))
+        await cmd.reply("Command format !{cmd} (check|<new_total>)".format(**fmt_dict))
         return
-    LIVE_STATS["spin_done"] = new_total
-    Path(SETTINGS.db.spins).write_text(str(new_total))
-
     log.info(response)
     await cmd.reply(response)
 
@@ -590,13 +587,14 @@ async def lifespan(app: FastAPI):
 
     # you can directly register commands and their handlers
     if SETTINGS.twitch.enable_cmds:
-        chat.register_command("tspin", spin_done_command)
         chat.register_command("tpause", pause_command)
         chat.register_command("tresume", resume_command)
         chat.register_command("tadd", add_time_command)
         chat.register_command("tremove", remove_time_command)
         chat.register_command("traised", raised_command)
         chat.register_command("taddtip", add_tip_command)
+        if Spins.enabled:
+            chat.register_command("tspin", spin_done_command)
 
     # we are done with our setup, lets start this bot up!
     chat.start()
@@ -646,9 +644,11 @@ async def get_total_value():
     return f"${calc_dollars():0.02f}"
 
 
-@app.get("/live_stats/spins", response_class=PlainTextResponse)
-async def get_total_value():
-    return f"{LIVE_STATS['spin_done']}/{calc_dollars()/25:0.1f}"
+if Spins.enabled:
+
+    @app.get("/live_stats/spins", response_class=PlainTextResponse)
+    async def get_total_value():
+        return f"{Spins().performed}/{Spins().calc_todo(calc_dollars()):0.1f}"
 
 
 @app.get("/calc_timer", response_class=PlainTextResponse)
@@ -765,20 +765,9 @@ async def websocket_endpoint(websocket: WebSocket):
         pass
 
 
-def load_spins(file_path: Path):
-    if not file_path.is_file():
-        log.warning(f"No spin file found at {file_path}, creating one")
-        file_path.parent.mkdir(exist_ok=True, parents=True)
-        file_path.write_text("0")
-        return
-    raw = file_path.read_text()
-    LIVE_STATS["spin_done"] = int(raw)
-    log.debug(f"Loaded Spin file and got {LIVE_STATS['spin_done']=}")
-
-
 if __name__ == "__main__":
     Pause.load_pause()
-    load_spins(Path(SETTINGS.db.spins))
+    Spins.load_spins()
     load_csv()
     handle_end(initial_run=True)
     log.info(f"Finished loading files and got {LIVE_STATS=}")

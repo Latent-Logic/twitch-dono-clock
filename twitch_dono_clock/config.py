@@ -56,6 +56,16 @@ class SetOutput(BaseModel):
     css: str
 
 
+class SetSpins(BaseModel):
+    enabled: bool = False
+    value_div: float = 25
+
+    @model_validator(mode="after")
+    def div_valid(self):
+        assert self.value_div > 0, f"{self.div_valid=} must be greater than 0"
+        return self
+
+
 class SetRegex(BaseModel):
     regex: str
 
@@ -104,6 +114,7 @@ class Settings(BaseModel):
     end: SetEnd
     db: SetDB
     output: SetOutput
+    spins: SetSpins = Field(default_factory=SetSpins)
     tips: SetBitsTips
     bits: SetBitsTips
     subs: SetSubs

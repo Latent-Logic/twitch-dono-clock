@@ -30,6 +30,10 @@ port = 8000
 public = "ws://127.0.0.1:8000"
 css = "#text {}"
 
+[spins]
+enabled = false
+value_div = 25
+
 [tips]
 min = 2
 money = 1
