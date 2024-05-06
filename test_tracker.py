@@ -22,6 +22,7 @@ from twitchAPI.type import AuthScope, ChatEvent, TwitchAPIException
 from websockets import ConnectionClosedOK
 
 from twitch_dono_clock.config import SETTINGS
+from twitch_dono_clock.end import End
 from twitch_dono_clock.pause import Pause
 from twitch_dono_clock.spins import Spins
 
@@ -39,8 +40,7 @@ LIVE_STATS = {
         BITS: 0,
         SUBS: {T1: 0, T2: 0, T3: 0},
         TIPS: 0,
-    },
-    "end": {},
+    }
 }
 
 
@@ -187,13 +187,13 @@ async def pause_command(cmd: ChatCommand):
         "cmd": "tpause",
         "pause_min": Pause().minutes,
         "pause_start": Pause().start,
-        "end_ts": LIVE_STATS["end"].get("end_ts"),
-        "end_min": LIVE_STATS["end"].get("end_min"),
+        "end_ts": End().end_ts,
+        "end_min": End().end_min,
     }
     if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
         log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
         return
-    elif LIVE_STATS["end"]:
+    elif End().is_ended():
         await cmd.reply(SETTINGS.fmt.cmd_after_end.format(**fmt_dict))
         return
     if Pause().is_paused():
@@ -232,13 +232,13 @@ async def parse_time_from_cmd(cmd: ChatCommand, cmd_name: str):
         "cmd": cmd_name,
         "pause_min": Pause().minutes,
         "pause_start": Pause().start,
-        "end_ts": LIVE_STATS["end"].get("end_ts"),
-        "end_min": LIVE_STATS["end"].get("end_min"),
+        "end_ts": End().end_ts,
+        "end_min": End().end_min,
     }
     if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
         log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
         return
-    elif LIVE_STATS["end"]:
+    elif End().is_ended():
         await cmd.reply(SETTINGS.fmt.cmd_after_end.format(**fmt_dict))
         return
     try:
@@ -319,8 +319,8 @@ async def raised_command(cmd: ChatCommand):
         "so_far_min": so_far_total_min % 60,
         "min_paid_for": calc_chat_minutes(),
         "min_end_at": calc_end().total_seconds() / 60,
-        "end_ts": LIVE_STATS["end"].get("end_ts"),
-        "end_min": LIVE_STATS["end"].get("end_min"),
+        "end_ts": End().end_ts,
+        "end_min": End().end_min,
         "total_value": calc_dollars(),
         "countdown": calc_timer(),
         "bits": LIVE_STATS[DONOS][BITS],
@@ -344,7 +344,7 @@ async def add_tip_command(cmd: ChatCommand):
     if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
         log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
         return
-    elif LIVE_STATS["end"]:
+    elif End().is_ended():
         await cmd.reply(SETTINGS.fmt.cmd_after_end.format(**fmt_dict))
         return
 
@@ -432,8 +432,8 @@ def calc_chat_minutes() -> float:
 
 def calc_end() -> timedelta:
     """Find the timedelta to use for final calculations"""
-    if LIVE_STATS["end"].get("end_min"):
-        return timedelta(minutes=LIVE_STATS["end"]["end_min"])
+    if End().is_ended():
+        return timedelta(minutes=End().end_min)
     minutes = calc_chat_minutes()
     minutes += SETTINGS.start.minutes
     if SETTINGS.end.max_minutes:
@@ -464,8 +464,8 @@ def calc_dollars() -> float:
 
 def calc_time_so_far() -> timedelta:
     """How much time has been counted down since the start"""
-    if LIVE_STATS["end"].get("end_ts"):
-        cur_time = LIVE_STATS["end"]["end_ts"]
+    if End().is_ended():
+        cur_time = End().end_ts
     elif Pause().is_paused():
         cur_time: datetime = Pause().start
     else:
@@ -487,31 +487,6 @@ def calc_timer() -> str:
         return pause_format.format(clock=time_str)
     else:
         return time_str
-
-
-def handle_end(initial_run: bool = False):
-    if initial_run and not LIVE_STATS["end"]:
-        if SETTINGS.end.max_minutes:
-            assert SETTINGS.end.max_minutes > SETTINGS.start.minutes
-        end_file = Path(SETTINGS.db.end_mark)
-        if end_file.is_file():
-            LIVE_STATS["end"] = toml.load(end_file)
-            assert "end_min" in LIVE_STATS["end"] and "end_ts" in LIVE_STATS["end"]
-            log.debug(f"Loaded end marker file and got {LIVE_STATS['end']=}")
-    if LIVE_STATS["end"]:
-        return  # We've already reached an end state, no need for further calculations
-    time_so_far = calc_time_so_far()
-    available_time = calc_end()
-    if time_so_far < available_time:
-        return  # We've not reached our ending time yet everyone still run normally
-    now = datetime.now(tz=timezone.utc)
-    end_time = now - (time_so_far - available_time)
-    LIVE_STATS["end"] = {
-        "end_min": available_time.total_seconds() / 60,
-        "end_ts": end_time,
-        "ended_at_max": calc_chat_minutes() >= SETTINGS.end.max_minutes,
-    }
-    Path(SETTINGS.db.end_mark).write_text(toml.dumps(LIVE_STATS["end"]))
 
 
 async def channel_offline(_event):
@@ -619,8 +594,8 @@ class JSONResponse(JSONResponse):
 
 @app.get("/live_stats", response_class=JSONResponse)
 async def get_live_stats():
-    handle_end()
-    full_stats = {"pause_min": Pause().minutes, "pause_start": Pause().start, **LIVE_STATS}
+    End().handle_end(calc_time_so_far, calc_end, calc_chat_minutes)
+    full_stats = {"pause_min": Pause().minutes, "pause_start": Pause().start, **LIVE_STATS, "end": End().to_dict()}
     return jsonable_encoder(full_stats)
 
 
@@ -653,7 +628,7 @@ if Spins.enabled:
 
 @app.get("/calc_timer", response_class=PlainTextResponse)
 async def get_calc_timer():
-    handle_end()
+    End().handle_end(calc_time_so_far, calc_end, calc_chat_minutes)
     return calc_timer()
 
 
@@ -755,7 +730,7 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     try:
         while True:
-            handle_end()
+            End().handle_end(calc_time_so_far, calc_end, calc_chat_minutes)
             try:
                 await websocket.send_text(calc_timer())
                 await asyncio.sleep(0.5)
@@ -769,8 +744,9 @@ if __name__ == "__main__":
     Pause.load_pause()
     Spins.load_spins()
     load_csv()
-    handle_end(initial_run=True)
+    End.load_end()
     log.info(f"Finished loading files and got {LIVE_STATS=}")
+    End().handle_end(calc_time_so_far, calc_end, calc_chat_minutes)
     log.info(f"Users who can run cmds in addition to mods {SETTINGS.twitch.admin_users}")
 
     import uvicorn

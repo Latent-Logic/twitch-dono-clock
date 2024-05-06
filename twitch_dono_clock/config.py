@@ -40,6 +40,11 @@ class SetStart(BaseModel):
 class SetEnd(BaseModel):
     max_minutes: int
 
+    @model_validator(mode="after")
+    def valid_max(self):
+        assert self.max_minutes >= 0
+        return self
+
 
 class SetDB(BaseModel):
     events: str = "db/events.csv"
@@ -124,6 +129,8 @@ class Settings(BaseModel):
 
     @model_validator(mode="after")
     def compile_regex(self):
+        if self.end.max_minutes:
+            assert self.end.max_minutes > self.start.minutes, "end.max_minutes must be larger than start.minutes"
         for user, obj in self.bits.msg.items():
             self._compiled_re.append((user, obj.re, "bits"))
         for user, obj in self.tips.msg.items():
