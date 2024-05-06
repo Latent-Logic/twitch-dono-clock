@@ -8,7 +8,7 @@ log = logging.getLogger(__name__)
 
 
 class Spins(metaclass=Singleton):
-    pause_file = Path(SETTINGS.db.spins)
+    spin_file = Path(SETTINGS.db.spins)
     enabled = SETTINGS.spins.enabled
     div_val = SETTINGS.spins.value_div
 
@@ -20,17 +20,17 @@ class Spins(metaclass=Singleton):
         if not cls.enabled:
             log.debug("Spins not enabled, not loading")
             return
-        if not cls.pause_file.is_file():
-            log.warning(f"No spin file found at {cls.pause_file}, creating one")
-            cls.pause_file.parent.mkdir(exist_ok=True, parents=True)
-            cls.pause_file.write_text("0")
+        if not cls.spin_file.is_file():
+            log.warning(f"No spin file found at {cls.spin_file}, creating one")
+            cls.spin_file.parent.mkdir(exist_ok=True, parents=True)
+            cls.spin_file.write_text("0")
             return cls()
-        performed = int(cls.pause_file.read_text())
+        performed = int(cls.spin_file.read_text())
         log.info(f"Loaded Spin file and got {performed=}")
         return cls(performed)
 
     def save(self):
-        self.pause_file.write_text(str(self._performed))
+        self.spin_file.write_text(str(self._performed))
 
     @property
     def performed(self) -> int:
