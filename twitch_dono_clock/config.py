@@ -42,11 +42,11 @@ class SetEnd(BaseModel):
 
 
 class SetDB(BaseModel):
-    events: str
-    pause: str
-    pause_log: str
-    end_mark: str
-    spins: str
+    events: str = "db/events.csv"
+    pause: str = "db/pause.txt"
+    pause_log: str = "db/pause_log.txt"
+    end_mark: str = "db/end.toml"
+    spins: str = "db/spins.txt"
 
 
 class SetOutput(BaseModel):
@@ -112,7 +112,7 @@ class Settings(BaseModel):
     twitch: SetTwitch
     start: SetStart
     end: SetEnd
-    db: SetDB
+    db: SetDB = Field(default_factory=SetDB)
     output: SetOutput
     spins: SetSpins = Field(default_factory=SetSpins)
     tips: SetBitsTips
