@@ -3,12 +3,12 @@ from datetime import datetime
 from typing import Dict, List, Tuple, Union
 
 import toml
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, SecretStr, model_validator
 
 
 class SetTwitch(BaseModel):
     app_id: str
-    app_secret: str
+    app_secret: SecretStr
     channel: str
     auth_url: str
     user_token_file: str

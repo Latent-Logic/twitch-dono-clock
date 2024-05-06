@@ -545,7 +545,7 @@ async def channel_online(_event):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # set up twitch api instance and add user authentication with some scopes
-    twitch = await Twitch(SETTINGS.twitch.app_id, SETTINGS.twitch.app_secret)
+    twitch = await Twitch(SETTINGS.twitch.app_id, SETTINGS.twitch.app_secret.get_secret_value())
     usr_token_file = Path(SETTINGS.twitch.user_token_file)
     if usr_token_file.is_file():
         user_auth = toml.load(usr_token_file)
