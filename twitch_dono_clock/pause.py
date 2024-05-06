@@ -26,14 +26,14 @@ class Pause(metaclass=Singleton):
             return cls()
         raw = cls.pause_file.read_text()
         if ";" in raw:
-            time, pause_time = raw.strip().split(";", maxsplit=1)
+            time_str, pause_time = raw.strip().split(";", maxsplit=1)
             start = datetime.fromisoformat(pause_time)
         else:
-            time = raw
+            time_str = raw
             start = None
-
+        time = float(time_str)
         log.info(f"Loaded Pause file and got {time=} {start=}")
-        return cls(float(time), start)
+        return cls(time, start)
 
     def save(self):
         if self.is_paused():
