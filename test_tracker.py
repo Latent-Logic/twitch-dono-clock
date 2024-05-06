@@ -694,7 +694,7 @@ async def get_donors(sort: str = "total"):
     donor_keys = {
         "name": (lambda x: x["name"].lower(), False),
         "total": (lambda x: x["total"], True),
-        **{k: (lambda x: x[k], True) for k in CSV_TYPES},
+        **{k: (lambda x, y=k: x[y], True) for k in CSV_TYPES},
     }
     if sort not in donor_keys:
         return f"<html><body><xmp>{sort} not in {tuple(donor_keys.keys())}</xmp></body></html>"
@@ -711,7 +711,7 @@ async def get_donors(sort: str = "total"):
             user_db["total"] += amount * SETTINGS.get_value(row["type"])
 
     build_table = "<table>\n"
-    build_table += "<tr>" + "".join(f"<th>{s}</th>" for s in donor_keys) + "</tr>\n"
+    build_table += "<tr>" + "".join(f"<th><a href='?sort={s}'>{s}</a></th>" for s in donor_keys) + "</tr>\n"
     for row in sorted(donor_db.values(), key=donor_keys[sort][0], reverse=donor_keys[sort][1]):
         build_table += "<tr>" + "".join(f"<td>{row[s]}</td>" for s in donor_keys) + "</tr>\n"
     build_table += "</table>\n"
