@@ -49,7 +49,7 @@ class End(metaclass=Singleton):
         self,
         calc_time_so_far: Callable[[], timedelta],
         calc_end: Callable[[], timedelta],
-        calc_chat_minutes: Callable[[], float],
+        calc_total_minutes: Callable[[], float],
     ):
         if self.is_ended():
             return  # We've already reached an end state, no need for further calculations
@@ -63,7 +63,7 @@ class End(metaclass=Singleton):
         if SETTINGS.end.max_minutes == 0:
             self.ended_at_max = False
         else:
-            self.ended_at_max = calc_chat_minutes() >= SETTINGS.end.max_minutes
+            self.ended_at_max = calc_total_minutes() >= SETTINGS.end.max_minutes
 
         log.info(f"Timer has ended! {self.end_ts.isoformat()} w/ {self.end_min:.2f}min")
         self.save()

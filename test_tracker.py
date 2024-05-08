@@ -1,6 +1,5 @@
 """Twitch donothon clock based on reading chat"""
 import asyncio
-import csv
 import json
 import logging
 from contextlib import asynccontextmanager
@@ -22,26 +21,15 @@ from twitchAPI.type import AuthScope, ChatEvent, TwitchAPIException
 from websockets import ConnectionClosedOK
 
 from twitch_dono_clock.config import SETTINGS
+from twitch_dono_clock.donos import BITS, CSV_COLUMNS, CSV_TYPES, TIPS, Donos
 from twitch_dono_clock.end import End
 from twitch_dono_clock.pause import Pause
 from twitch_dono_clock.spins import Spins
 
 # "chat:read chat:edit"
 USER_SCOPE = [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT]
-DONOS = "donos"
-SUBS, T1, T2, T3 = "subs", "t1", "t2", "t3"
-CSV_COLUMNS = ["time", "user", "target", "type", "amount"]
-CSV_TYPES = ["bits", "tips", f"{SUBS}_{T1}", f"{SUBS}_{T2}", f"{SUBS}_{T3}"]
-BITS, TIPS, SUBS_T1, SUBS_T2, SUBS_T3 = CSV_TYPES
-log = logging.getLogger("test_tracker")
 
-LIVE_STATS = {
-    DONOS: {
-        BITS: 0,
-        SUBS: {T1: 0, T2: 0, T3: 0},
-        TIPS: 0,
-    }
-}
+log = logging.getLogger("test_tracker")
 
 
 def config_logging(level: str = "INFO"):
@@ -80,13 +68,12 @@ async def on_message(msg: ChatMessage):
     log.debug(f"{msg.user.name=} {msg._parsed=}")
     if msg.bits:
         log.info(f"in {msg.room.name}, {msg.user.name} sent bits: {msg.bits}")
-        LIVE_STATS[DONOS][BITS] += int(msg.bits)
-        append_csv(
+        Donos().add_event(
             ts=msg.sent_timestamp,
             user=msg.user.display_name,
             target=None,
             type=BITS,
-            amount=msg.bits,
+            amount=int(msg.bits),
         )
     for user, regex, target in SETTINGS.compiled_re:
         if msg.user.name.lower() == user.lower():
@@ -97,8 +84,9 @@ async def on_message(msg: ChatMessage):
                     amount = int(match["amount"])
                 elif target == TIPS:
                     amount = float(match["amount"])
-                LIVE_STATS[DONOS][target] += amount
-                append_csv(
+                else:
+                    raise ValueError(f"Unknown target from msg parsing {target}")
+                Donos().add_event(
                     ts=msg.sent_timestamp,
                     user=match["user"],
                     target=None,
@@ -126,13 +114,11 @@ async def on_sub(sub: ChatSub):
         months = 1
     log.info(log_msg)
     log.debug(f"{sub._parsed=}")
-    tier = SETTINGS.subs.plan[sub.sub_plan]
-    LIVE_STATS[DONOS][SUBS][tier] += months
-    append_csv(
+    Donos().add_event(
         ts=sub._parsed["tags"]["tmi-sent-ts"],
         user=sub._parsed["tags"]["display-name"],
         target=sub._parsed["tags"].get("msg-param-recipient-display-name"),
-        type=f"subs_{tier}",
+        type=Donos.sub_from_twitch_plan(sub.sub_plan),
         amount=months,
     )
 
@@ -151,7 +137,7 @@ async def spin_done_command(cmd: ChatCommand):
         "cmd": "tspin",
         "spins_done": Spins().performed,
         "old_spins_done": Spins().performed,
-        "spins_to_do": int(Spins().calc_todo(calc_dollars())),
+        "spins_to_do": int(Spins().calc_todo(Donos().calc_dollars())),
     }
     if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
         log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
@@ -317,18 +303,19 @@ async def raised_command(cmd: ChatCommand):
         "so_far_total_min": so_far_total_min,
         "so_far_hrs": so_far_total_min // 60,
         "so_far_min": so_far_total_min % 60,
-        "min_paid_for": calc_chat_minutes(),
+        "min_paid_for": Donos().calc_chat_minutes(),
+        "min_total": Donos().calc_total_minutes(),
         "min_end_at": calc_end().total_seconds() / 60,
         "end_ts": End().end_ts,
         "end_min": End().end_min,
-        "total_value": calc_dollars(),
+        "total_value": Donos().calc_dollars(),
         "countdown": calc_timer(),
-        "bits": LIVE_STATS[DONOS][BITS],
-        "tips": LIVE_STATS[DONOS][TIPS],
-        "subs": sum(LIVE_STATS[DONOS][SUBS].values()),
-        "subs_t1": LIVE_STATS[DONOS][SUBS][T1],
-        "subs_t2": LIVE_STATS[DONOS][SUBS][T2],
-        "subs_t3": LIVE_STATS[DONOS][SUBS][T2],
+        "bits": Donos().bits,
+        "tips": Donos().tips,
+        "subs": Donos().subs,
+        "subs_t1": Donos().subs_t1,
+        "subs_t2": Donos().subs_t2,
+        "subs_t3": Donos().subs_t3,
         "pause_min": Pause().minutes,
         "pause_start": Pause().start or "Not Currently Paused",
     }
@@ -367,8 +354,7 @@ async def add_tip_command(cmd: ChatCommand):
         await cmd.reply("Parameter [amount] must be parsable as numbers to be recorded")
         return
     log.info(f"in {cmd.room.name}, {cmd.user.name} added tip from {giver}: {amount:.02f} w/ type {reason}")
-    LIVE_STATS[DONOS][TIPS] += amount
-    append_csv(
+    Donos().add_event(
         ts=cmd.sent_timestamp,
         user=giver,
         target=reason,
@@ -381,85 +367,14 @@ async def add_tip_command(cmd: ChatCommand):
         await cmd.reply(f"Recorded tip from {giver} of ${amount:.02f}")
 
 
-# Load CSV log file for refreshing stats
-def load_csv():
-    file_path = Path(SETTINGS.db.events)
-    if not file_path.is_file():
-        log.warning(f"No CSV file found at {file_path}, creating one")
-        file_path.parent.mkdir(exist_ok=True, parents=True)
-        file_path.write_text(",".join(CSV_COLUMNS) + "\n")
-        return
-    with file_path.open("r", encoding="utf-8") as f:
-        reader = csv.DictReader(f, delimiter=",")
-        assert reader.fieldnames == CSV_COLUMNS
-        for row in reader:
-            if row["type"] == BITS:
-                LIVE_STATS[DONOS][BITS] += int(row["amount"])
-            elif row["type"] == TIPS:
-                LIVE_STATS[DONOS][TIPS] += float(row["amount"])
-            elif row["type"].startswith("subs_"):
-                if row["type"].endswith("_t1"):
-                    LIVE_STATS[DONOS][SUBS][T1] += int(row["amount"])
-                elif row["type"].endswith("_t2"):
-                    LIVE_STATS[DONOS][SUBS][T2] += int(row["amount"])
-                elif row["type"].endswith("_t3"):
-                    LIVE_STATS[DONOS][SUBS][T3] += int(row["amount"])
-    log.debug(f"Loaded CSV file and got: {LIVE_STATS['donos']=}")
-
-
-def append_csv(ts: int, user: str, type: str, amount: float, target: Optional[str] = None):
-    file_path = Path(SETTINGS.db.events)
-    if not file_path.is_file():
-        raise FileNotFoundError(f"No CSV file found at {file_path}, Should have been created earlier?!?")
-    with file_path.open("a", encoding="utf-8") as f:
-        csv.DictWriter(f, CSV_COLUMNS, lineterminator="\n").writerow(
-            {"time": ts, "user": user, "target": target or "", "type": type, "amount": amount}
-        )
-
-
-def calc_chat_minutes() -> float:
-    """Total number of minutes paid for by chat"""
-    minutes = 0
-    donos = LIVE_STATS[DONOS]
-    minutes += donos[BITS] * SETTINGS.bits.min
-    minutes += donos[TIPS] * SETTINGS.tips.min
-    subs = donos[SUBS]
-    minutes += subs[T1] * SETTINGS.subs.tier.t1.min
-    minutes += subs[T2] * SETTINGS.subs.tier.t2.min
-    minutes += subs[T3] * SETTINGS.subs.tier.t3.min
-    return minutes
-
-
 def calc_end() -> timedelta:
     """Find the timedelta to use for final calculations"""
     if End().is_ended():
         return timedelta(minutes=End().end_min)
-    minutes = calc_chat_minutes()
-    minutes += SETTINGS.start.minutes
+    minutes = Donos().calc_total_minutes()
     if SETTINGS.end.max_minutes:
         minutes = min(minutes, SETTINGS.end.max_minutes)
     return timedelta(minutes=minutes)
-
-
-def calc_minutes_over() -> float:
-    """How many minutes over the final calculation we are"""
-    if SETTINGS.end.max_minutes:
-        return calc_chat_minutes() - SETTINGS.end.max_minutes
-    else:
-        return 0.0
-
-
-def calc_dollars() -> float:
-    """Total financial gain from chat donations"""
-    dollars = 0
-    donos = LIVE_STATS[DONOS]
-    dollars += donos[BITS] * SETTINGS.bits.money
-    dollars += donos[TIPS] * SETTINGS.tips.money
-    subs = donos[SUBS]
-    dollars += subs[T1] * SETTINGS.subs.tier.t1.money
-    dollars += subs[T2] * SETTINGS.subs.tier.t2.money
-    dollars += subs[T3] * SETTINGS.subs.tier.t3.money
-    return dollars
 
 
 def calc_time_so_far() -> timedelta:
@@ -594,41 +509,46 @@ class JSONResponse(JSONResponse):
 
 @app.get("/live_stats", response_class=JSONResponse)
 async def get_live_stats():
-    End().handle_end(calc_time_so_far, calc_end, calc_chat_minutes)
-    full_stats = {"pause_min": Pause().minutes, "pause_start": Pause().start, **LIVE_STATS, "end": End().to_dict()}
+    End().handle_end(calc_time_so_far, calc_end, Donos().calc_total_minutes)
+    full_stats = {
+        "pause_min": Pause().minutes,
+        "pause_start": Pause().start,
+        "donos": Donos().donos,
+        "end": End().to_dict(),
+    }
     return jsonable_encoder(full_stats)
 
 
 @app.get("/live_stats/bits", response_class=PlainTextResponse)
 async def get_live_stats_bits():
-    return f"{LIVE_STATS[DONOS][BITS]}"
+    return f"{Donos().bits}"
 
 
 @app.get("/live_stats/tips", response_class=PlainTextResponse)
 async def get_live_stats_tips():
-    return f"${LIVE_STATS[DONOS][TIPS]:.02f}"
+    return f"${Donos().tips:.02f}"
 
 
 @app.get("/live_stats/subs", response_class=PlainTextResponse)
 async def get_live_stats_subs():
-    return str(LIVE_STATS[DONOS][SUBS][T1] + LIVE_STATS[DONOS][SUBS][T2] + LIVE_STATS[DONOS][SUBS][T3])
+    return str(Donos().subs)
 
 
 @app.get("/live_stats/total_value", response_class=PlainTextResponse)
 async def get_total_value():
-    return f"${calc_dollars():0.02f}"
+    return f"${Donos().calc_dollars():0.02f}"
 
 
 if Spins.enabled:
 
     @app.get("/live_stats/spins", response_class=PlainTextResponse)
     async def get_total_value():
-        return f"{Spins().performed}/{Spins().calc_todo(calc_dollars()):0.1f}"
+        return f"{Spins().performed}/{Spins().calc_todo(Donos().calc_dollars()):0.1f}"
 
 
 @app.get("/calc_timer", response_class=PlainTextResponse)
 async def get_calc_timer():
-    End().handle_end(calc_time_so_far, calc_end, calc_chat_minutes)
+    End().handle_end(calc_time_so_far, calc_end, Donos().calc_total_minutes)
     return calc_timer()
 
 
@@ -643,14 +563,11 @@ async def get_events(timezone: Optional[str] = None):
             return f"<html><body><xmp>{e}</xmp></body></html>"
 
     events_per_day = {}
-    with Path(SETTINGS.db.events).open("r", encoding="utf-8") as f:
-        reader = csv.DictReader(f, delimiter=",")
-        assert reader.fieldnames == CSV_COLUMNS
-        for row in reader:
-            row["time"]: datetime = datetime.fromtimestamp(int(row["time"]) / 1000).astimezone(tz)
-            day = row["time"].date()
-            day_list = events_per_day.setdefault(day, [])
-            day_list.append(row)
+    for row in Donos.csv_iter():
+        row["time"]: datetime = datetime.fromtimestamp(int(row["time"]) / 1000).astimezone(tz)
+        day = row["time"].date()
+        day_list = events_per_day.setdefault(day, [])
+        day_list.append(row)
 
     build_table = ""
     for date, rows in events_per_day.items():
@@ -674,16 +591,13 @@ async def get_donors(sort: str = "total"):
     if sort not in donor_keys:
         return f"<html><body><xmp>{sort} not in {tuple(donor_keys.keys())}</xmp></body></html>"
     donor_db = {}
-    with Path(SETTINGS.db.events).open("r", encoding="utf-8") as f:
-        reader = csv.DictReader(f, delimiter=",")
-        assert reader.fieldnames == CSV_COLUMNS
-        for row in reader:
-            user_db = donor_db.setdefault(
-                row["user"].lower(), {"name": row["user"], "total": 0, **{k: 0 for k in CSV_TYPES}}
-            )
-            amount = float(row["amount"]) if row["type"] == TIPS else int(row["amount"])
-            user_db[row["type"]] += amount
-            user_db["total"] += amount * SETTINGS.get_value(row["type"])
+    for row in Donos.csv_iter():
+        user_db = donor_db.setdefault(
+            row["user"].lower(), {"name": row["user"], "total": 0, **{k: 0 for k in CSV_TYPES}}
+        )
+        amount = float(row["amount"]) if row["type"] == TIPS else int(row["amount"])
+        user_db[row["type"]] += amount
+        user_db["total"] += amount * SETTINGS.get_value(row["type"])
 
     build_table = "<table>\n"
     build_table += "<tr>" + "".join(f"<th><a href='?sort={s}'>{s}</a></th>" for s in donor_keys) + "</tr>\n"
@@ -730,7 +644,7 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     try:
         while True:
-            End().handle_end(calc_time_so_far, calc_end, calc_chat_minutes)
+            End().handle_end(calc_time_so_far, calc_end, Donos().calc_total_minutes)
             try:
                 await websocket.send_text(calc_timer())
                 await asyncio.sleep(0.5)
@@ -743,10 +657,9 @@ async def websocket_endpoint(websocket: WebSocket):
 if __name__ == "__main__":
     Pause.load_pause()
     Spins.load_spins()
-    load_csv()
+    Donos.load_csv()
     End.load_end()
-    log.info(f"Finished loading files and got {LIVE_STATS=}")
-    End().handle_end(calc_time_so_far, calc_end, calc_chat_minutes)
+    End().handle_end(calc_time_so_far, calc_end, Donos().calc_total_minutes)
     log.info(f"Users who can run cmds in addition to mods {SETTINGS.twitch.admin_users}")
 
     import uvicorn
