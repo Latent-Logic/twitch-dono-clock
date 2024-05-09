@@ -675,11 +675,15 @@ async def websocket_endpoint(websocket: WebSocket):
 async def websocket_endpoint(
     websocket: WebSocket, item: Literal["tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3"]
 ):
+    last_sent = None
     await websocket.accept()
     try:
         while True:
             try:
-                await websocket.send_text(str(getattr(Donos(), item)))
+                cur_msg = str(getattr(Donos(), item))
+                if cur_msg != last_sent:
+                    await websocket.send_text(cur_msg)
+                    last_sent = cur_msg
                 await asyncio.sleep(1)
             except ConnectionClosedOK:
                 break
