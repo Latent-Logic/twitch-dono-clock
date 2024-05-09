@@ -5,7 +5,7 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import toml
@@ -621,7 +621,7 @@ websocket_html = """
         <script>
             var ws
             function connect() {{
-                ws = new WebSocket("{hostname}/ws");
+                ws = new WebSocket("{hostname}/{path}");
                 ws.onmessage = function(event) {{ document.getElementById('text').innerText = event.data }}
             }}
             connect()
@@ -635,8 +635,25 @@ websocket_html = """
 
 
 @app.get("/live", response_class=HTMLResponse)
-async def get():
-    return websocket_html.format(name="countdown", css=SETTINGS.output.css, hostname=SETTINGS.output.public)
+async def get_live_timer():
+    return websocket_html.format(name="countdown", css=SETTINGS.output.css, hostname=SETTINGS.output.public, path="ws")
+
+
+@app.get("/live_counter", response_class=HTMLResponse)
+async def get_live_counter(item: Optional[Literal["tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3"]] = None):
+    if item is None:
+        return (
+            "<html><body>"
+            ", ".join(f"<a href='?item={s}'>{s}</a>" for s in ("tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3"))
+            + "</body></html>"
+        )
+    else:
+        return websocket_html.format(
+            name=f"{item} counter",
+            css=SETTINGS.output.css,
+            hostname=SETTINGS.output.public,
+            path=f"ws_counter?item={item}",
+        )
 
 
 @app.websocket("/ws")
@@ -648,6 +665,22 @@ async def websocket_endpoint(websocket: WebSocket):
             try:
                 await websocket.send_text(calc_timer())
                 await asyncio.sleep(0.5)
+            except ConnectionClosedOK:
+                break
+    except WebSocketDisconnect:
+        pass
+
+
+@app.websocket("/ws_counter")
+async def websocket_endpoint(
+    websocket: WebSocket, item: Literal["tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3"]
+):
+    await websocket.accept()
+    try:
+        while True:
+            try:
+                await websocket.send_text(str(getattr(Donos(), item)))
+                await asyncio.sleep(1)
             except ConnectionClosedOK:
                 break
     except WebSocketDisconnect:
