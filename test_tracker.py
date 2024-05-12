@@ -667,7 +667,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 
 @app.websocket("/ws_counter")
-async def websocket_endpoint(
+async def websocket_counter_endpoint(
     websocket: WebSocket, item: Literal["tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3"]
 ):
     last_sent = None
