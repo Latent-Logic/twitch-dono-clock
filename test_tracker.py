@@ -727,6 +727,17 @@ async def put_pause_abort(password: str):
         raise HTTPException(status_code=409, detail=str(e))
 
 
+@app.put("/admin/pause/minutes")
+async def put_set_minutes(password: str, minutes: float):
+    SETTINGS.raise_on_bad_password(password)
+    old_values = Pause().to_dict()
+    try:
+        Pause().pause_set(minutes, "/admin/pause/minutes")
+        return {"old": old_values, "new": Pause().to_dict()}
+    except PauseException as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
 if __name__ == "__main__":
     Pause.load_pause()
     Spins.load_spins()
