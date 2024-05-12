@@ -22,7 +22,7 @@ from websockets import ConnectionClosedOK
 
 from twitch_dono_clock.config import SETTINGS
 from twitch_dono_clock.donos import BITS, CSV_COLUMNS, CSV_TYPES, TIPS, Donos
-from twitch_dono_clock.end import End
+from twitch_dono_clock.end import End, EndException
 from twitch_dono_clock.pause import Pause, PauseException
 from twitch_dono_clock.spins import Spins
 
@@ -392,6 +392,7 @@ def calc_time_so_far() -> timedelta:
 
 def calc_timer() -> str:
     """Generate the timer string from the difference between paid and run minutes"""
+    End().handle_end(calc_time_so_far, calc_end, Donos().calc_total_minutes)
     remaining = calc_end() - calc_time_so_far()
     hours = int(remaining.total_seconds() / 60 / 60)
     minutes = int(remaining.total_seconds() / 60) % 60
@@ -509,7 +510,6 @@ class JSONResponse(JSONResponse):
 
 @app.get("/live_stats", response_class=JSONResponse)
 async def get_live_stats():
-    End().handle_end(calc_time_so_far, calc_end, Donos().calc_total_minutes)
     full_stats = {"pause": Pause().to_dict(), "donos": Donos().to_dict(), "end": End().to_dict()}
     return jsonable_encoder(full_stats)
 
@@ -543,7 +543,6 @@ if Spins.enabled:
 
 @app.get("/calc_timer", response_class=PlainTextResponse)
 async def get_calc_timer():
-    End().handle_end(calc_time_so_far, calc_end, Donos().calc_total_minutes)
     return calc_timer()
 
 
@@ -656,7 +655,6 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     try:
         while True:
-            End().handle_end(calc_time_so_far, calc_end, Donos().calc_total_minutes)
             try:
                 await websocket.send_text(calc_timer())
                 await asyncio.sleep(0.5)
@@ -684,6 +682,17 @@ async def websocket_counter_endpoint(
                 break
     except WebSocketDisconnect:
         pass
+
+
+@app.put("/admin/end/clear", response_class=JSONResponse)
+async def put_end_clear(password: str):
+    SETTINGS.raise_on_bad_password(password)
+    old_values = End().to_dict()
+    try:
+        End().clear("/admin/end/clear")
+        return {"old": old_values, "new": End().to_dict()}
+    except EndException as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 @app.put("/admin/pause/begin", response_class=JSONResponse)

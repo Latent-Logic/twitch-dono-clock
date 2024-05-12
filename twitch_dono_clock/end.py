@@ -11,6 +11,14 @@ from twitch_dono_clock.utils import Singleton
 log = logging.getLogger(__name__)
 
 
+class EndException(Exception):
+    pass
+
+
+class EndNotEnded(Exception):
+    pass
+
+
 class End(metaclass=Singleton):
     end_file = Path(SETTINGS.db.end_mark)
 
@@ -42,7 +50,8 @@ class End(metaclass=Singleton):
         return {}
 
     def save(self):
-        assert self.is_ended()
+        if not self.is_ended():
+            raise EndNotEnded("Can't save an end if we've not ended")
         self.end_file.write_text(toml.dumps(self.to_dict()))
 
     def handle_end(
@@ -67,3 +76,14 @@ class End(metaclass=Singleton):
 
         log.info(f"Timer has ended! {self.end_ts.isoformat()} w/ {self.end_min:.2f}min")
         self.save()
+
+    def clear(self, reason: Optional[str] = None):
+        if not self.is_ended():
+            raise EndNotEnded("Can't clear an end if we've not ended!")
+        old = self.to_dict()
+        self.end_ts = None
+        self.end_min = None
+        self.ended_at_max = None
+        self.end_file.unlink()
+        reason_msg = f" because {reason}" if reason else ""
+        log.info(f"End of {old} cleared{reason_msg}")
