@@ -9,7 +9,7 @@ from typing import Literal, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import toml
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from twitchAPI.chat import Chat, ChatCommand, ChatMessage, ChatSub, EventData
@@ -23,7 +23,7 @@ from websockets import ConnectionClosedOK
 from twitch_dono_clock.config import SETTINGS
 from twitch_dono_clock.donos import BITS, CSV_COLUMNS, CSV_TYPES, TIPS, Donos
 from twitch_dono_clock.end import End
-from twitch_dono_clock.pause import Pause
+from twitch_dono_clock.pause import Pause, PauseException
 from twitch_dono_clock.spins import Spins
 
 # "chat:read chat:edit"
@@ -510,12 +510,7 @@ class JSONResponse(JSONResponse):
 @app.get("/live_stats", response_class=JSONResponse)
 async def get_live_stats():
     End().handle_end(calc_time_so_far, calc_end, Donos().calc_total_minutes)
-    full_stats = {
-        "pause_min": Pause().minutes,
-        "pause_start": Pause().start,
-        "donos": Donos().donos,
-        "end": End().to_dict(),
-    }
+    full_stats = {"pause": Pause().to_dict(), "donos": Donos().to_dict(), "end": End().to_dict()}
     return jsonable_encoder(full_stats)
 
 
@@ -689,6 +684,47 @@ async def websocket_endpoint(
                 break
     except WebSocketDisconnect:
         pass
+
+
+@app.put("/admin/pause/begin", response_class=JSONResponse)
+async def put_pause_begin(password: str, time: Optional[datetime] = None):
+    SETTINGS.raise_on_bad_password(password)
+    old_values = Pause().to_dict()
+    try:
+        if time is None:
+            Pause().start_pause("/admin/pause/start")
+            return {"old": old_values, "new": Pause().to_dict()}
+        else:
+            Pause().set_pause_start(time, "/admin/pause/start")
+            return {"old": old_values, "new": Pause().to_dict()}
+    except PauseException as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@app.put("/admin/pause/resume")
+async def put_pause_resume(password: str, time: Optional[datetime] = None):
+    SETTINGS.raise_on_bad_password(password)
+    old_values = Pause().to_dict()
+    try:
+        if time is None:
+            Pause().resume("/admin/pause/resume")
+            return {"old": old_values, "new": Pause().to_dict()}
+        else:
+            Pause().resumed_at(time, "/admin/pause/resume")
+            return {"old": old_values, "new": Pause().to_dict()}
+    except PauseException as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@app.put("/admin/pause/abort")
+async def put_pause_abort(password: str):
+    SETTINGS.raise_on_bad_password(password)
+    old_values = Pause().to_dict()
+    try:
+        Pause().abort_current("/admin/pause/resume")
+        return {"old": old_values, "new": Pause().to_dict()}
+    except PauseException as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 if __name__ == "__main__":

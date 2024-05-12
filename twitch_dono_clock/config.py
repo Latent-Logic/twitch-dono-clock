@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Dict, List, Tuple, Union
 
 import toml
+from fastapi import HTTPException
 from pydantic import BaseModel, Field, SecretStr, model_validator
 
 
@@ -59,6 +60,7 @@ class SetOutput(BaseModel):
     port: int
     public: str
     css: str
+    admin_pass: SecretStr
 
 
 class SetSpins(BaseModel):
@@ -152,6 +154,10 @@ class Settings(BaseModel):
             return self.subs.tier.t2.money
         if type_name == "subs_t3":
             return self.subs.tier.t3.money
+
+    def raise_on_bad_password(self, to_check: str):
+        if to_check != self.output.admin_pass.get_secret_value().format(channel=self.twitch.channel):
+            raise HTTPException(status_code=401, detail="Password is invalid")
 
 
 try:

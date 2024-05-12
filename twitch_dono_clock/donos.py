@@ -60,6 +60,11 @@ class Donos(metaclass=Singleton):
         log.info(f"Loaded dono events CSV file and got: {donos}")
         return cls(donos)
 
+    def to_dict(self):
+        to_return = dict(self.donos)
+        to_return[SUBS] = dict(to_return[SUBS])
+        return to_return
+
     def add_event(self, ts: int, user: str, type: str, amount: Union[int, float], target: Optional[str] = None):
         if not self.dono_path.is_file():
             raise FileNotFoundError(f"No CSV file found at {self.dono_path}, Should have been created earlier?!?")

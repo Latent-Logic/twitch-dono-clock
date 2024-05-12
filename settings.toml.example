@@ -29,6 +29,7 @@ listen = "127.0.0.1"
 port = 8000
 public = "ws://127.0.0.1:8000"
 css = "#text {}"
+admin_password "Ch@ngePas5w0rd-{channel}"
 
 [spins]
 enabled = false
