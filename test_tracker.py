@@ -9,6 +9,7 @@ from typing import Literal, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import toml
+import twitchAPI.oauth
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
@@ -445,7 +446,21 @@ async def lifespan(app: FastAPI):
             twitch.auto_refresh_auth = False
     else:
         auth = UserAuthenticator(twitch, USER_SCOPE, url=SETTINGS.twitch.auth_url)
-        token, refresh_token = await auth.authenticate(browser_name="google-chrome")
+
+        class FakeWebBrowser:
+            @staticmethod
+            def get(*_args, **_kwargs):
+                class FakeBrowser:
+                    @staticmethod
+                    def open(url, *_args, **_kwargs):
+                        log.info(f"Please open {url}")
+
+                return FakeBrowser()
+
+        # Patch the webbrowser import to print the url to load
+        twitchAPI.oauth.webbrowser = FakeWebBrowser()
+
+        token, refresh_token = await auth.authenticate()
         usr_token_file.write_text(toml.dumps({"token": token, "refresh_token": refresh_token}))
     try:
         await twitch.set_user_authentication(token, USER_SCOPE, refresh_token)
