@@ -710,7 +710,7 @@ async def put_pause_begin(password: str, time: Optional[datetime] = None):
         raise HTTPException(status_code=409, detail=str(e))
 
 
-@app.put("/admin/pause/resume")
+@app.put("/admin/pause/resume", response_class=JSONResponse)
 async def put_pause_resume(password: str, time: Optional[datetime] = None):
     SETTINGS.raise_on_bad_password(password)
     old_values = Pause().to_dict()
@@ -725,7 +725,7 @@ async def put_pause_resume(password: str, time: Optional[datetime] = None):
         raise HTTPException(status_code=409, detail=str(e))
 
 
-@app.put("/admin/pause/abort")
+@app.put("/admin/pause/abort", response_class=JSONResponse)
 async def put_pause_abort(password: str):
     SETTINGS.raise_on_bad_password(password)
     old_values = Pause().to_dict()
@@ -736,7 +736,7 @@ async def put_pause_abort(password: str):
         raise HTTPException(status_code=409, detail=str(e))
 
 
-@app.put("/admin/pause/minutes")
+@app.put("/admin/pause/minutes", response_class=JSONResponse)
 async def put_set_minutes(password: str, minutes: float):
     SETTINGS.raise_on_bad_password(password)
     old_values = Pause().to_dict()
@@ -745,6 +745,14 @@ async def put_set_minutes(password: str, minutes: float):
         return {"old": old_values, "new": Pause().to_dict()}
     except PauseException as e:
         raise HTTPException(status_code=409, detail=str(e))
+
+
+@app.put("/admin/donos/reload", response_class=JSONResponse)
+async def put_donos_reload(password: str):
+    SETTINGS.raise_on_bad_password(password)
+    old_values = Donos().to_dict()
+    Donos().reload_csv()
+    return {"old": old_values, "new": Donos().to_dict()}
 
 
 if __name__ == "__main__":

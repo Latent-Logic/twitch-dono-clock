@@ -38,12 +38,7 @@ class Donos(metaclass=Singleton):
                 yield row
 
     @classmethod
-    def load_csv(cls):
-        if not cls.dono_path.is_file():
-            log.warning(f"No CSV file found at {cls.dono_path}, creating one")
-            cls.dono_path.parent.mkdir(exist_ok=True, parents=True)
-            cls.dono_path.write_text(",".join(CSV_COLUMNS) + "\n")
-            return cls()
+    def read_csv(cls) -> dict[str, Any]:
         donos = {BITS: 0, SUBS: {T1: 0, T2: 0, T3: 0}, TIPS: 0}
         for row in cls.csv_iter():
             if row["type"] == BITS:
@@ -57,6 +52,16 @@ class Donos(metaclass=Singleton):
                     donos[SUBS][T2] += int(row["amount"])
                 elif row["type"].endswith("_t3"):
                     donos[SUBS][T3] += int(row["amount"])
+        return donos
+
+    @classmethod
+    def load_csv(cls):
+        if not cls.dono_path.is_file():
+            log.warning(f"No CSV file found at {cls.dono_path}, creating one")
+            cls.dono_path.parent.mkdir(exist_ok=True, parents=True)
+            cls.dono_path.write_text(",".join(CSV_COLUMNS) + "\n")
+            return cls()
+        donos = cls.read_csv()
         log.info(f"Loaded dono events CSV file and got: {donos}")
         return cls(donos)
 
@@ -64,6 +69,11 @@ class Donos(metaclass=Singleton):
         to_return = dict(self.donos)
         to_return[SUBS] = dict(to_return[SUBS])
         return to_return
+
+    def reload_csv(self):
+        old_dict = self.to_dict()
+        self.donos = self.read_csv()
+        log.info(f"Reloaded CSV file, went from {old_dict} to {self.donos}")
 
     def add_event(self, ts: int, user: str, type: str, amount: Union[int, float], target: Optional[str] = None):
         if not self.dono_path.is_file():
