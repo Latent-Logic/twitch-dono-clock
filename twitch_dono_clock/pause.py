@@ -59,7 +59,7 @@ class Pause(metaclass=Singleton):
     def log_pause_change(self, why: str):
         now = datetime.now(timezone.utc)
         line = f"{now.isoformat()}\t{self.minutes:.2f}\t{why}\n"
-        log.info(line)
+        log.info(line.rstrip("\n"))
         with self.log_file.open("a") as f:
             f.write(line)
 

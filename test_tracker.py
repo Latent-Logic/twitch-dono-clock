@@ -188,8 +188,9 @@ async def pause_command(cmd: ChatCommand):
     else:
         Pause().start_pause("!{cmd}".format(**fmt_dict))
         fmt_dict["pause_start"] = Pause().start
-        log.info(SETTINGS.fmt.tpause_success.format(**fmt_dict))
-        await cmd.reply(SETTINGS.fmt.tpause_success.format(**fmt_dict))
+        response = SETTINGS.fmt.tpause_success.format(**fmt_dict)
+        log.info(response)
+        await cmd.reply(response)
 
 
 async def resume_command(cmd: ChatCommand):
@@ -209,8 +210,9 @@ async def resume_command(cmd: ChatCommand):
         fmt_dict["pause_min"] = Pause().minutes
         fmt_dict["added_min"] = added_min
         fmt_dict["pause_start"] = None
-        log.info(SETTINGS.fmt.tresume_success.format(**fmt_dict))
-        await cmd.reply(SETTINGS.fmt.tresume_success.format(**fmt_dict))
+        response = SETTINGS.fmt.tresume_success.format(**fmt_dict)
+        log.info(response)
+        await cmd.reply(response)
 
 
 async def parse_time_from_cmd(cmd: ChatCommand, cmd_name: str):
@@ -269,8 +271,9 @@ async def add_time_command(cmd: ChatCommand):
         "pause_delta": minutes,
     }
     Pause().pause_increase(minutes, "!{cmd}".format(**fmt_dict))
-    log.info(SETTINGS.fmt.tadd_success.format(**fmt_dict))
-    await cmd.reply(SETTINGS.fmt.tadd_success.format(**fmt_dict))
+    response = SETTINGS.fmt.tadd_success.format(**fmt_dict)
+    log.info(response)
+    await cmd.reply(response)
 
 
 async def remove_time_command(cmd: ChatCommand):
@@ -286,8 +289,9 @@ async def remove_time_command(cmd: ChatCommand):
         "pause_delta": minutes,
     }
     Pause().pause_reduce(minutes, "!{cmd}".format(**fmt_dict))
-    log.info(SETTINGS.fmt.tremove_success.format(**fmt_dict))
-    await cmd.reply(SETTINGS.fmt.tremove_success.format(**fmt_dict))
+    response = SETTINGS.fmt.tremove_success.format(**fmt_dict)
+    log.info(response)
+    await cmd.reply(response)
 
 
 async def raised_command(cmd: ChatCommand):
@@ -320,8 +324,9 @@ async def raised_command(cmd: ChatCommand):
         "pause_min": Pause().minutes,
         "pause_start": Pause().start or "Not Currently Paused",
     }
-    log.info(SETTINGS.fmt.traised_success.format(**fmt_dict))
-    await cmd.reply(SETTINGS.fmt.traised_success.format(**fmt_dict))
+    response = SETTINGS.fmt.traised_success.format(**fmt_dict)
+    log.info(response)
+    await cmd.reply(response)
 
 
 async def add_tip_command(cmd: ChatCommand):
