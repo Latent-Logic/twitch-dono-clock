@@ -76,22 +76,23 @@ async def on_message(msg: ChatMessage):
             type=BITS,
             amount=int(msg.bits),
         )
-    for user, regex, target in SETTINGS.compiled_re:
+    for user, regex, dono_type, target in SETTINGS.compiled_re:
         if msg.user.name.lower() == user.lower():
             match = regex.match(msg.text)
             if match:
-                log.info(f"in {msg.room.name}, {match['user']} sent {target}: {match['amount']}")
-                if target == BITS:
+                via = f" via {target}" if target else ""
+                log.info(f"in {msg.room.name}, {match['user']} sent {dono_type}{via}: {match['amount']}")
+                if dono_type == BITS:
                     amount = int(match["amount"].replace(",", ""))
-                elif target == TIPS:
+                elif dono_type == TIPS:
                     amount = float(match["amount"].replace(",", ""))
                 else:
-                    raise ValueError(f"Unknown target from msg parsing {target}")
+                    raise ValueError(f"Unknown target from msg parsing {dono_type}")
                 Donos().add_event(
                     ts=msg.sent_timestamp,
                     user=match["user"],
-                    target=None,
-                    type=target,
+                    target=target,
+                    type=dono_type,
                     amount=amount,
                 )
 

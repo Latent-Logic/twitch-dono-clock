@@ -42,10 +42,12 @@ money = 1
 [tips.msg.StreamElements]
 # Example: StreamElements: User2 just tipped $25.00 emoteHeart
 regex = "(?P<user>.*) just tipped \\$(?P<amount>[\\d.,]*) emoteHeart.*"
+target = "StreamElements"
 
 [tips.msg.KofiStreamBot]
 # Example: New donation from User2 for $5.00: "{messsage}". Thank you!
 regex = "New donation from (?P<user>.+) for \\$?(?P<amount>[\\d.,]+): .*"
+target = "KoFi"
 
 [bits]
 min = 0.02
@@ -53,6 +55,7 @@ money = 0.01
 [bits.msg.SoundAlerts]
 # Example: SoundAlerts: User1 played Modem for 150 Bits
 regex = "(?P<user>[^ ]*) played (?P<alert>.*) for (?P<amount>[^ ]*) Bits.*"
+target = "SoundAlerts"
 
 [subs]
 count_multimonth = false

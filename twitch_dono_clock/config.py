@@ -1,6 +1,6 @@
 import re
 from datetime import datetime
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import toml
 from fastapi import HTTPException
@@ -75,6 +75,7 @@ class SetSpins(BaseModel):
 
 class SetRegex(BaseModel):
     regex: str
+    target: Optional[str] = None
 
     @property
     def re(self) -> re.Pattern:
@@ -127,20 +128,20 @@ class Settings(BaseModel):
     subs: SetSubs
     fmt: SetFmt
 
-    _compiled_re: List[Tuple[str, re.Pattern, str]] = []
+    _compiled_re: List[Tuple[str, re.Pattern, str, Optional[str]]] = []
 
     @model_validator(mode="after")
     def compile_regex(self):
         if self.end.max_minutes:
             assert self.end.max_minutes > self.start.minutes, "end.max_minutes must be larger than start.minutes"
         for user, obj in self.bits.msg.items():
-            self._compiled_re.append((user, obj.re, "bits"))
+            self._compiled_re.append((user, obj.re, "bits", obj.target))
         for user, obj in self.tips.msg.items():
-            self._compiled_re.append((user, obj.re, "tips"))
+            self._compiled_re.append((user, obj.re, "tips", obj.target))
         return self
 
     @property
-    def compiled_re(self) -> List[Tuple[str, re.Pattern, str]]:
+    def compiled_re(self) -> List[Tuple[str, re.Pattern, str, Optional[str]]]:
         return self._compiled_re
 
     def get_value(self, type_name: str) -> Union[float, int]:
