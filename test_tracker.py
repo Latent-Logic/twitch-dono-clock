@@ -82,9 +82,9 @@ async def on_message(msg: ChatMessage):
             if match:
                 log.info(f"in {msg.room.name}, {match['user']} sent {target}: {match['amount']}")
                 if target == BITS:
-                    amount = int(match["amount"])
+                    amount = int(match["amount"].replace(",", ""))
                 elif target == TIPS:
-                    amount = float(match["amount"])
+                    amount = float(match["amount"].replace(",", ""))
                 else:
                     raise ValueError(f"Unknown target from msg parsing {target}")
                 Donos().add_event(
