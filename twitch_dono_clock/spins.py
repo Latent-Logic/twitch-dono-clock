@@ -1,7 +1,10 @@
 import logging
 from pathlib import Path
 
+from twitchAPI.chat import ChatCommand
+
 from twitch_dono_clock.config import SETTINGS
+from twitch_dono_clock.donos import Donos
 from twitch_dono_clock.utils import Singleton
 
 log = logging.getLogger(__name__)
@@ -46,3 +49,39 @@ class Spins(metaclass=Singleton):
 
     def calc_todo(self, value: float) -> float:
         return value / self.div_val
+
+
+async def spin_done_command(cmd: ChatCommand):
+    fmt_dict = {
+        "user": cmd.user.name,
+        "cmd": "tspin",
+        "spins_done": Spins().performed,
+        "old_spins_done": Spins().performed,
+        "spins_to_do": int(Spins().calc_todo(Donos().calc_dollars())),
+    }
+    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
+        log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
+        return
+    parameters = cmd.parameter.split()
+    if not parameters:
+        Spins().spin_performed()
+        fmt_dict["spins_done"] = Spins().performed
+        response = "Spin counter increased by 1, now {spins_done}/{spins_to_do}".format(**fmt_dict)
+    elif len(parameters) == 1:
+        if parameters[0].lower() == "check":
+            response = "Spin counter is at {spins_done}/{spins_to_do}".format(**fmt_dict)
+            log.info(response)
+            await cmd.reply(response)
+            return
+        try:
+            Spins().set_performed(int(parameters[0]))
+        except ValueError:
+            await cmd.reply(f"The new total `{parameters[0]}` must be parsable as an integer")
+            return
+        fmt_dict["spins_done"] = Spins().performed
+        response = "Spin counter set from {old_spins_done} to {spins_done} out of {spins_to_do}".format(**fmt_dict)
+    else:
+        await cmd.reply("Command format !{cmd} (check|<new_total>)".format(**fmt_dict))
+        return
+    log.info(response)
+    await cmd.reply(response)

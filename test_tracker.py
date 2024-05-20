@@ -22,10 +22,24 @@ from twitchAPI.type import AuthScope, ChatEvent, TwitchAPIException
 from websockets import ConnectionClosedOK
 
 from twitch_dono_clock.config import SETTINGS
-from twitch_dono_clock.donos import BITS, CSV_COLUMNS, CSV_TYPES, TIPS, Donos
+from twitch_dono_clock.donos import (
+    BITS,
+    CSV_COLUMNS,
+    CSV_TYPES,
+    TIPS,
+    Donos,
+    add_tip_command,
+)
 from twitch_dono_clock.end import End, EndException
-from twitch_dono_clock.pause import Pause, PauseException
-from twitch_dono_clock.spins import Spins
+from twitch_dono_clock.pause import (
+    Pause,
+    PauseException,
+    add_time_command,
+    pause_command,
+    remove_time_command,
+    resume_command,
+)
+from twitch_dono_clock.spins import Spins, spin_done_command
 
 # "chat:read chat:edit"
 USER_SCOPE = [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT]
@@ -133,168 +147,6 @@ async def on_raid(raid: dict):
     log.debug(f"{raid}")
 
 
-async def spin_done_command(cmd: ChatCommand):
-    fmt_dict = {
-        "user": cmd.user.name,
-        "cmd": "tspin",
-        "spins_done": Spins().performed,
-        "old_spins_done": Spins().performed,
-        "spins_to_do": int(Spins().calc_todo(Donos().calc_dollars())),
-    }
-    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
-        log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
-        return
-    parameters = cmd.parameter.split()
-    if not parameters:
-        Spins().spin_performed()
-        fmt_dict["spins_done"] = Spins().performed
-        response = "Spin counter increased by 1, now {spins_done}/{spins_to_do}".format(**fmt_dict)
-    elif len(parameters) == 1:
-        if parameters[0].lower() == "check":
-            response = "Spin counter is at {spins_done}/{spins_to_do}".format(**fmt_dict)
-            log.info(response)
-            await cmd.reply(response)
-            return
-        try:
-            Spins().set_performed(int(parameters[0]))
-        except ValueError:
-            await cmd.reply(f"The new total `{parameters[0]}` must be parsable as an integer")
-            return
-        fmt_dict["spins_done"] = Spins().performed
-        response = "Spin counter set from {old_spins_done} to {spins_done} out of {spins_to_do}".format(**fmt_dict)
-    else:
-        await cmd.reply("Command format !{cmd} (check|<new_total>)".format(**fmt_dict))
-        return
-    log.info(response)
-    await cmd.reply(response)
-
-
-async def pause_command(cmd: ChatCommand):
-    fmt_dict = {
-        "user": cmd.user.name,
-        "cmd": "tpause",
-        "pause_min": Pause().minutes,
-        "pause_start": Pause().start,
-        "end_ts": End().end_ts,
-        "end_min": End().end_min,
-    }
-    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
-        log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
-        return
-    elif End().is_ended():
-        await cmd.reply(SETTINGS.fmt.cmd_after_end.format(**fmt_dict))
-        return
-    if Pause().is_paused():
-        await cmd.reply(SETTINGS.fmt.tpause_failure.format(**fmt_dict))
-    else:
-        Pause().start_pause("!{cmd}".format(**fmt_dict))
-        fmt_dict["pause_start"] = Pause().start
-        response = SETTINGS.fmt.tpause_success.format(**fmt_dict)
-        log.info(response)
-        await cmd.reply(response)
-
-
-async def resume_command(cmd: ChatCommand):
-    fmt_dict = {
-        "user": cmd.user.name,
-        "cmd": "tresume",
-        "pause_min": Pause().minutes,
-        "pause_start": Pause().start,
-    }
-    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
-        log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
-        return
-    if not Pause().is_paused():
-        await cmd.reply(SETTINGS.fmt.tresume_failure.format(**fmt_dict))
-    else:
-        added_min = Pause().resume("!{cmd}".format(**fmt_dict))
-        fmt_dict["pause_min"] = Pause().minutes
-        fmt_dict["added_min"] = added_min
-        fmt_dict["pause_start"] = None
-        response = SETTINGS.fmt.tresume_success.format(**fmt_dict)
-        log.info(response)
-        await cmd.reply(response)
-
-
-async def parse_time_from_cmd(cmd: ChatCommand, cmd_name: str):
-    fmt_dict = {
-        "user": cmd.user.name,
-        "cmd": cmd_name,
-        "pause_min": Pause().minutes,
-        "pause_start": Pause().start,
-        "end_ts": End().end_ts,
-        "end_min": End().end_min,
-    }
-    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
-        log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
-        return
-    elif End().is_ended():
-        await cmd.reply(SETTINGS.fmt.cmd_after_end.format(**fmt_dict))
-        return
-    try:
-        raw = cmd.parameter.split()[0]
-        if raw.endswith("h") or raw.endswith("hr") or raw.endswith("hrs"):
-            num_str = raw[: raw.find("h")]
-            mins = float(num_str) * 60
-        elif raw.endswith("m") or raw.endswith("min") or raw.endswith("mins"):
-            num_str = raw[: raw.find("m")]
-            mins = float(num_str)
-        elif raw.endswith("s") or raw.endswith("sec") or raw.endswith("secs"):
-            num_str = raw[: raw.find("s")]
-            mins = float(num_str) / 60
-        else:
-            raise ValueError(f"Didn't recognize {raw}. Type a number followed by s, m, or h")
-        if mins <= 0:
-            raise ValueError(f"Only use positive numbers with this command")
-    except IndexError as err:
-        fmt_dict |= {"err": str(err), "err_type": str(type(err))}
-        log.error(cmd.reply(SETTINGS.fmt.missing_time_parameter_failure.format(**fmt_dict)))
-        await cmd.reply(SETTINGS.fmt.missing_time_parameter_failure.format(**fmt_dict))
-        raise
-    except ValueError as err:
-        fmt_dict |= {"err": str(err), "err_type": str(type(err))}
-        log.error(SETTINGS.fmt.invalid_time_parameter_failure.format(**fmt_dict))
-        await cmd.reply(SETTINGS.fmt.invalid_time_parameter_failure.format(**fmt_dict))
-        raise
-    return mins
-
-
-async def add_time_command(cmd: ChatCommand):
-    try:
-        minutes = await parse_time_from_cmd(cmd, "tadd")
-    except (IndexError, ValueError):
-        return
-    fmt_dict = {
-        "user": cmd.user.name,
-        "cmd": "tadd",
-        "pause_min": Pause().minutes,
-        "pause_start": Pause().start,
-        "pause_delta": minutes,
-    }
-    Pause().pause_increase(minutes, "!{cmd}".format(**fmt_dict))
-    response = SETTINGS.fmt.tadd_success.format(**fmt_dict)
-    log.info(response)
-    await cmd.reply(response)
-
-
-async def remove_time_command(cmd: ChatCommand):
-    try:
-        minutes = await parse_time_from_cmd(cmd, "tremove")
-    except (IndexError, ValueError):
-        return
-    fmt_dict = {
-        "user": cmd.user.name,
-        "cmd": "tremove",
-        "pause_min": Pause().minutes,
-        "pause_start": Pause().start,
-        "pause_delta": minutes,
-    }
-    Pause().pause_reduce(minutes, "!{cmd}".format(**fmt_dict))
-    response = SETTINGS.fmt.tremove_success.format(**fmt_dict)
-    log.info(response)
-    await cmd.reply(response)
-
-
 async def raised_command(cmd: ChatCommand):
     fmt_dict = {
         "user": cmd.user.name,
@@ -328,50 +180,6 @@ async def raised_command(cmd: ChatCommand):
     response = SETTINGS.fmt.traised_success.format(**fmt_dict)
     log.info(response)
     await cmd.reply(response)
-
-
-async def add_tip_command(cmd: ChatCommand):
-    fmt_dict = {
-        "user": cmd.user.name,
-        "cmd": "taddtip",
-    }
-    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
-        log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
-        return
-    elif End().is_ended():
-        await cmd.reply(SETTINGS.fmt.cmd_after_end.format(**fmt_dict))
-        return
-
-    parameters = cmd.parameter.split()
-    if len(parameters) == 2:
-        giver, amount_str = parameters
-        reason = None
-    elif len(parameters) == 3:
-        giver, amount_str, reason = parameters
-    else:
-        await cmd.reply("Command format !{cmd} [donor] [amount] <type-of-tip>".format(**fmt_dict))
-        return
-    if giver.startswith("@"):
-        giver = giver[1:]
-    if amount_str.startswith("$"):
-        amount_str = amount_str[1:]
-    try:
-        amount = float(amount_str)
-    except ValueError:
-        await cmd.reply("Parameter [amount] must be parsable as numbers to be recorded")
-        return
-    log.info(f"in {cmd.room.name}, {cmd.user.name} added tip from {giver}: {amount:.02f} w/ type {reason}")
-    Donos().add_event(
-        ts=cmd.sent_timestamp,
-        user=giver,
-        target=reason,
-        type=TIPS,
-        amount=amount,
-    )
-    if reason:
-        await cmd.reply(f"Recorded tip from {giver} of ${amount:.02f} with type {reason}")
-    else:
-        await cmd.reply(f"Recorded tip from {giver} of ${amount:.02f}")
 
 
 def calc_end() -> timedelta:

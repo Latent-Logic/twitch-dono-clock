@@ -4,7 +4,10 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, Optional, Union
 
+from twitchAPI.chat import ChatCommand
+
 from twitch_dono_clock.config import SETTINGS
+from twitch_dono_clock.end import End
 from twitch_dono_clock.utils import Singleton
 
 log = logging.getLogger(__name__)
@@ -152,3 +155,47 @@ class Donos(metaclass=Singleton):
     @property
     def subs_t3(self) -> int:
         return self.donos[SUBS][T3]
+
+
+async def add_tip_command(cmd: ChatCommand):
+    fmt_dict = {
+        "user": cmd.user.name,
+        "cmd": "taddtip",
+    }
+    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
+        log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
+        return
+    elif End().is_ended():
+        await cmd.reply(SETTINGS.fmt.cmd_after_end.format(**fmt_dict))
+        return
+
+    parameters = cmd.parameter.split()
+    if len(parameters) == 2:
+        giver, amount_str = parameters
+        reason = None
+    elif len(parameters) == 3:
+        giver, amount_str, reason = parameters
+    else:
+        await cmd.reply("Command format !{cmd} [donor] [amount] <type-of-tip>".format(**fmt_dict))
+        return
+    if giver.startswith("@"):
+        giver = giver[1:]
+    if amount_str.startswith("$"):
+        amount_str = amount_str[1:]
+    try:
+        amount = float(amount_str)
+    except ValueError:
+        await cmd.reply("Parameter [amount] must be parsable as numbers to be recorded")
+        return
+    log.info(f"in {cmd.room.name}, {cmd.user.name} added tip from {giver}: {amount:.02f} w/ type {reason}")
+    Donos().add_event(
+        ts=cmd.sent_timestamp,
+        user=giver,
+        target=reason,
+        type=TIPS,
+        amount=amount,
+    )
+    if reason:
+        await cmd.reply(f"Recorded tip from {giver} of ${amount:.02f} with type {reason}")
+    else:
+        await cmd.reply(f"Recorded tip from {giver} of ${amount:.02f}")

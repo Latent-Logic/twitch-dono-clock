@@ -3,7 +3,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from twitchAPI.chat import ChatCommand
+
 from twitch_dono_clock.config import SETTINGS
+from twitch_dono_clock.end import End
 from twitch_dono_clock.utils import Singleton
 
 log = logging.getLogger(__name__)
@@ -151,3 +154,129 @@ class Pause(metaclass=Singleton):
         reason_msg = f" because {reason}" if reason else ""
         self.log_pause_change(f"Pause start of {old_start.isoformat()} aborted{reason_msg}")
         return old_start
+
+
+async def pause_command(cmd: ChatCommand):
+    fmt_dict = {
+        "user": cmd.user.name,
+        "cmd": "tpause",
+        "pause_min": Pause().minutes,
+        "pause_start": Pause().start,
+        "end_ts": End().end_ts,
+        "end_min": End().end_min,
+    }
+    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
+        log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
+        return
+    elif End().is_ended():
+        await cmd.reply(SETTINGS.fmt.cmd_after_end.format(**fmt_dict))
+        return
+    if Pause().is_paused():
+        await cmd.reply(SETTINGS.fmt.tpause_failure.format(**fmt_dict))
+    else:
+        Pause().start_pause("!{cmd}".format(**fmt_dict))
+        fmt_dict["pause_start"] = Pause().start
+        response = SETTINGS.fmt.tpause_success.format(**fmt_dict)
+        log.info(response)
+        await cmd.reply(response)
+
+
+async def resume_command(cmd: ChatCommand):
+    fmt_dict = {
+        "user": cmd.user.name,
+        "cmd": "tresume",
+        "pause_min": Pause().minutes,
+        "pause_start": Pause().start,
+    }
+    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
+        log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
+        return
+    if not Pause().is_paused():
+        await cmd.reply(SETTINGS.fmt.tresume_failure.format(**fmt_dict))
+    else:
+        added_min = Pause().resume("!{cmd}".format(**fmt_dict))
+        fmt_dict["pause_min"] = Pause().minutes
+        fmt_dict["added_min"] = added_min
+        fmt_dict["pause_start"] = None
+        response = SETTINGS.fmt.tresume_success.format(**fmt_dict)
+        log.info(response)
+        await cmd.reply(response)
+
+
+async def parse_time_from_cmd(cmd: ChatCommand, cmd_name: str):
+    fmt_dict = {
+        "user": cmd.user.name,
+        "cmd": cmd_name,
+        "pause_min": Pause().minutes,
+        "pause_start": Pause().start,
+        "end_ts": End().end_ts,
+        "end_min": End().end_min,
+    }
+    if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
+        log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
+        return
+    elif End().is_ended():
+        await cmd.reply(SETTINGS.fmt.cmd_after_end.format(**fmt_dict))
+        return
+    try:
+        raw = cmd.parameter.split()[0]
+        if raw.endswith("h") or raw.endswith("hr") or raw.endswith("hrs"):
+            num_str = raw[: raw.find("h")]
+            mins = float(num_str) * 60
+        elif raw.endswith("m") or raw.endswith("min") or raw.endswith("mins"):
+            num_str = raw[: raw.find("m")]
+            mins = float(num_str)
+        elif raw.endswith("s") or raw.endswith("sec") or raw.endswith("secs"):
+            num_str = raw[: raw.find("s")]
+            mins = float(num_str) / 60
+        else:
+            raise ValueError(f"Didn't recognize {raw}. Type a number followed by s, m, or h")
+        if mins <= 0:
+            raise ValueError(f"Only use positive numbers with this command")
+    except IndexError as err:
+        fmt_dict |= {"err": str(err), "err_type": str(type(err))}
+        log.error(cmd.reply(SETTINGS.fmt.missing_time_parameter_failure.format(**fmt_dict)))
+        await cmd.reply(SETTINGS.fmt.missing_time_parameter_failure.format(**fmt_dict))
+        raise
+    except ValueError as err:
+        fmt_dict |= {"err": str(err), "err_type": str(type(err))}
+        log.error(SETTINGS.fmt.invalid_time_parameter_failure.format(**fmt_dict))
+        await cmd.reply(SETTINGS.fmt.invalid_time_parameter_failure.format(**fmt_dict))
+        raise
+    return mins
+
+
+async def add_time_command(cmd: ChatCommand):
+    try:
+        minutes = await parse_time_from_cmd(cmd, "tadd")
+    except (IndexError, ValueError):
+        return
+    fmt_dict = {
+        "user": cmd.user.name,
+        "cmd": "tadd",
+        "pause_min": Pause().minutes,
+        "pause_start": Pause().start,
+        "pause_delta": minutes,
+    }
+    Pause().pause_increase(minutes, "!{cmd}".format(**fmt_dict))
+    response = SETTINGS.fmt.tadd_success.format(**fmt_dict)
+    log.info(response)
+    await cmd.reply(response)
+
+
+async def remove_time_command(cmd: ChatCommand):
+    try:
+        minutes = await parse_time_from_cmd(cmd, "tremove")
+    except (IndexError, ValueError):
+        return
+    fmt_dict = {
+        "user": cmd.user.name,
+        "cmd": "tremove",
+        "pause_min": Pause().minutes,
+        "pause_start": Pause().start,
+        "pause_delta": minutes,
+    }
+    Pause().pause_reduce(minutes, "!{cmd}".format(**fmt_dict))
+    response = SETTINGS.fmt.tremove_success.format(**fmt_dict)
+    log.info(response)
+    await cmd.reply(response)
