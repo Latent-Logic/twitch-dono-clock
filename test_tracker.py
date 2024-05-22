@@ -375,6 +375,31 @@ async def get_calc_timer():
     return calc_timer()
 
 
+@app.get("/traised", response_class=JSONResponse)
+async def traised_fields():
+    so_far_total_min = calc_time_so_far().total_seconds() / 60
+    return {
+        "so_far_total_min": so_far_total_min,
+        "so_far_hrs": so_far_total_min // 60,
+        "so_far_min": so_far_total_min % 60,
+        "min_paid_for": Donos().calc_chat_minutes(),
+        "min_total": Donos().calc_total_minutes(),
+        "min_end_at": calc_end().total_seconds() / 60,
+        "end_ts": End().end_ts,
+        "end_min": End().end_min,
+        "total_value": Donos().calc_dollars(),
+        "countdown": calc_timer(),
+        "bits": Donos().bits,
+        "tips": Donos().tips,
+        "subs": Donos().subs,
+        "subs_t1": Donos().subs_t1,
+        "subs_t2": Donos().subs_t2,
+        "subs_t3": Donos().subs_t3,
+        "pause_min": Pause().minutes,
+        "pause_start": Pause().start or "Not Currently Paused",
+    }
+
+
 @app.get("/events", response_class=HTMLResponse)
 async def get_events(timezone: Optional[str] = None):
     if timezone is None:
