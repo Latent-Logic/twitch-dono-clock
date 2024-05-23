@@ -15,7 +15,7 @@ class EndException(Exception):
     pass
 
 
-class EndNotEnded(Exception):
+class EndNotEnded(EndException):
     pass
 
 
