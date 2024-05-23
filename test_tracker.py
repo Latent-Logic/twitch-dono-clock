@@ -184,7 +184,7 @@ async def raised_command(cmd: ChatCommand):
 
 def calc_end() -> timedelta:
     """Find the timedelta to use for final calculations"""
-    if End().is_ended():
+    if End().end_min:
         return timedelta(minutes=End().end_min)
     minutes = Donos().calc_total_minutes()
     if SETTINGS.end.max_minutes:
@@ -205,9 +205,10 @@ def calc_time_so_far() -> timedelta:
     return corrected_tsf
 
 
-def calc_timer() -> str:
+def calc_timer(handle_end: bool = True) -> str:
     """Generate the timer string from the difference between paid and run minutes"""
-    End().handle_end(calc_time_so_far, calc_end, Donos().calc_total_minutes)
+    if handle_end:
+        End().handle_end(calc_time_so_far, calc_end, Donos().calc_total_minutes)
     remaining = calc_end() - calc_time_so_far()
     hours = int(remaining.total_seconds() / 60 / 60)
     minutes = int(remaining.total_seconds() / 60) % 60
