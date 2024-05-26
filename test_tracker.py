@@ -70,12 +70,8 @@ config_logging()
 
 
 # this will be called when the event READY is triggered, which will be on bot start
-async def on_ready(ready_event: EventData):
-    log.info(f"Bot is ready for work, joining channel {SETTINGS.twitch.channel}")
-    # join our target channel, if you want to join multiple, either call join for each individually
-    # or even better pass a list of channels as the argument
-    await ready_event.chat.join_room(SETTINGS.twitch.channel)
-    # you can do other bot initialization things in here
+async def on_ready(_ready_event: EventData):
+    log.info(f"Bot is ready for work, should have already joined channel {SETTINGS.twitch.channel}")
 
 
 # this will be called whenever a message in a channel was send by either the bot OR another user
@@ -295,7 +291,12 @@ async def lifespan(app: FastAPI):
         await eventsub.listen_stream_online(channel.id, channel_online)
 
     # create chat instance
-    chat = await Chat(twitch, callback_loop=asyncio.get_running_loop(), no_message_reset_time=6)
+    chat = await Chat(
+        twitch,
+        initial_channel=[SETTINGS.twitch.channel],
+        callback_loop=asyncio.get_running_loop(),
+        no_message_reset_time=6,
+    )
 
     # listen to when the bot is done starting up and ready to join channels
     chat.register_event(ChatEvent.READY, on_ready)
