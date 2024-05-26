@@ -285,7 +285,7 @@ async def lifespan(app: FastAPI):
     # create eventsub websocket instance and start the client.
     eventsub = None
     if SETTINGS.twitch.eventsub:
-        eventsub = EventSubWebsocket(twitch)
+        eventsub = EventSubWebsocket(twitch, callback_loop=asyncio.get_running_loop())
         eventsub.start()
         await eventsub.listen_stream_offline(channel.id, channel_offline)
         await eventsub.listen_stream_online(channel.id, channel_online)
