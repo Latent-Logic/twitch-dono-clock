@@ -245,10 +245,17 @@ async def channel_online(_event):
         log.info(f"Channel went online at {now.isoformat()}, but time was not paused?!?")
 
 
+async def store_user_token(user_auth_token, user_auth_refresh_token):
+    usr_token_file = Path(SETTINGS.twitch.user_token_file)
+    usr_token_file.write_text(toml.dumps({"token": user_auth_token, "refresh_token": user_auth_refresh_token}))
+    log.info(f"Wrote updated {usr_token_file}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # set up twitch api instance and add user authentication with some scopes
     twitch = await Twitch(SETTINGS.twitch.app_id, SETTINGS.twitch.app_secret.get_secret_value())
+    twitch.user_auth_refresh_callback = store_user_token
     usr_token_file = Path(SETTINGS.twitch.user_token_file)
     if usr_token_file.is_file():
         user_auth = toml.load(usr_token_file)
@@ -272,7 +279,7 @@ async def lifespan(app: FastAPI):
         twitchAPI.oauth.webbrowser = FakeWebBrowser()
 
         token, refresh_token = await auth.authenticate()
-        usr_token_file.write_text(toml.dumps({"token": token, "refresh_token": refresh_token}))
+        await store_user_token(token, refresh_token)
     try:
         await twitch.set_user_authentication(token, USER_SCOPE, refresh_token)
     except TwitchAPIException:
