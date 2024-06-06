@@ -98,6 +98,9 @@ async def on_message(msg: ChatMessage):
                     amount = float(match["amount"].replace(",", ""))
                 else:
                     raise ValueError(f"Unknown target from msg parsing {dono_type}")
+                if not amount:  # If we have a record with 0 bits / 0 tip we shouldn't record
+                    log.debug(f"Skipping recording {amount} {dono_type}")
+                    continue
                 Donos().add_event(
                     ts=msg.sent_timestamp,
                     user=match["user"],
