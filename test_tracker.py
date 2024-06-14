@@ -89,12 +89,12 @@ async def on_message(msg: ChatMessage):
     fancy_msg = msg._parsed["tags"].get("msg-id")
     if fancy_msg:
         if fancy_msg == "gigantified-emote-message":
-            log.info(f"Got a Giant Emote {msg.text}")
+            log.info(f"{msg.sent_timestamp} {msg.user.display_name} sent a Giant Emote {msg.text}")
         elif fancy_msg == "animated-message":
             animation_type = msg._parsed["tags"].get("animation-id")
-            log.info(f"Got {animation_type} Animated Message  {msg.text}")
+            log.info(f"{msg.sent_timestamp} {msg.user.display_name} sent {animation_type} Animated Message  {msg.text}")
         else:
-            log.info(f"Got an unknown {fancy_msg=} - {msg.text}")
+            log.info(f"{msg.sent_timestamp} {msg.user.display_name} sent an unknown {fancy_msg=} - {msg.text}")
     for user, regex, dono_type, target in SETTINGS.compiled_re:
         if msg.user.name.lower() == user.lower():
             match = regex.match(msg.text)
