@@ -52,6 +52,10 @@ target = "KoFi"
 [bits]
 min = 0.01
 money = 0.01
+animated_message_bits = 20
+giant_emote_bits = 30
+on_screen_bits = 40  # Currently not supported, it doesn't show up in chat
+
 [bits.msg.SoundAlerts]
 # Example: SoundAlerts: User1 played Modem for 150 Bits
 regex = "(?P<user>[^ ]*) played (?P<alert>.*) for (?P<amount>[^ ]*) Bits.*"
