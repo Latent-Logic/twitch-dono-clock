@@ -523,11 +523,16 @@ async def get_live_timer():
 
 
 @app.get("/live_counter", response_class=HTMLResponse)
-async def get_live_counter(item: Optional[Literal["tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3"]] = None):
+async def get_live_counter(
+    item: Optional[Literal["tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3", "total"]] = None
+):
     if item is None:
         return (
             "<html><body>"
-            ", ".join(f"<a href='?item={s}'>{s}</a>" for s in ("tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3"))
+            ", ".join(
+                f"<a href='?item={s}'>{s}</a>"
+                for s in ("tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3", "total")
+            )
             + "</body></html>"
         )
     else:
@@ -555,14 +560,18 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.websocket("/ws_counter")
 async def websocket_counter_endpoint(
-    websocket: WebSocket, item: Literal["tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3"]
+    websocket: WebSocket, item: Literal["tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3", "total"]
 ):
     last_sent = None
+    money = {"tips", "total"}
     await websocket.accept()
     try:
         while True:
             try:
-                cur_msg = str(getattr(Donos(), item))
+                if item in money:
+                    cur_msg = f"${getattr(Donos(), item):.02f}"
+                else:
+                    cur_msg = str(getattr(Donos(), item))
                 if cur_msg != last_sent:
                     await websocket.send_text(cur_msg)
                     last_sent = cur_msg

@@ -156,6 +156,10 @@ class Donos(metaclass=Singleton):
     def subs_t3(self) -> int:
         return self.donos[SUBS][T3]
 
+    @property
+    def total(self) -> float:
+        return self.calc_dollars()
+
 
 async def add_tip_command(cmd: ChatCommand):
     fmt_dict = {
