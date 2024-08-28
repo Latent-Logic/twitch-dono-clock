@@ -87,7 +87,7 @@ async def on_message(msg: ChatMessage):
             amount=int(msg.bits),
         )
     fancy_msg = msg._parsed["tags"].get("msg-id")
-    if fancy_msg:
+    if fancy_msg and msg.user.name.lower() != msg.room.name.lower():
         if fancy_msg == "gigantified-emote-message":
             log.info(f"{msg.sent_timestamp} {msg.user.display_name} sent a Giant Emote {msg.text}")
             Donos().add_event(
