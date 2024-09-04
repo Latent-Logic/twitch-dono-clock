@@ -36,7 +36,7 @@ def load_csv(pause_file: Path, tz: tzinfo):
             Pause()._minutes = pause
             End().end_ts = pause_end
             loc_time = pause_end.astimezone(tz)
-            print(f"{loc_time.isoformat()}\t{pause}  \t{calc_timer(handle_end=False)}")
+            print(f"{loc_time.isoformat()}\t{pause}  \t{calc_timer(handle_end=False)}\t${Donos().calc_dollars():.02f}")
             try:
                 pause_end, pause = next(pause_end_itr)
             except StopIteration:
