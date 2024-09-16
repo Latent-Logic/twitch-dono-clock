@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Iterable, Tuple
 from zoneinfo import ZoneInfo
 
-from test_tracker import calc_timer
+from test_tracker import calc_timer, calc_time_so_far
 from twitch_dono_clock.donos import BITS, SUBS, T1, T2, T3, TIPS, Donos
 from twitch_dono_clock.end import End
 from twitch_dono_clock.pause import Pause
@@ -36,7 +36,10 @@ def load_csv(pause_file: Path, tz: tzinfo):
             Pause()._minutes = pause
             End().end_ts = pause_end
             loc_time = pause_end.astimezone(tz)
-            print(f"{loc_time.isoformat()}\t{pause}  \t{calc_timer(handle_end=False)}\t${Donos().calc_dollars():.02f}")
+            print(
+                f"{loc_time.isoformat()}\t{calc_timer(handle_end=False)}\t${Donos().calc_dollars():7.02f}"
+                f"\t{calc_time_so_far().total_seconds()/60:7.2f}/{Donos().calc_total_minutes():.2f}"
+            )
             try:
                 pause_end, pause = next(pause_end_itr)
             except StopIteration:
