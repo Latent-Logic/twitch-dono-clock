@@ -482,6 +482,27 @@ async def get_events(timezone: Optional[str] = None):
     return f"<html><head><style>{style}</style></head><body>{build_table}</body></html>"
 
 
+@app.get("/events_csv", response_class=PlainTextResponse)
+async def get_events_csv():
+    return Donos.dono_path.read_text()
+
+
+@app.get("/events_targets", response_class=JSONResponse)
+async def get_events_targets():
+    donation_targets = {"tips": {}, "bits": {}}
+    for row in Donos.csv_iter():
+        if row["type"] not in donation_targets:
+            continue
+        if not row["target"]:
+            continue
+        value = float(row["amount"]) if row["type"] == "tips" else int(row["amount"])
+        if row["target"] in donation_targets[row["type"]]:
+            donation_targets[row["type"]][row["target"]] += value
+        else:
+            donation_targets[row["type"]][row["target"]] = value
+    return donation_targets
+
+
 @app.get("/donors", response_class=HTMLResponse)
 async def get_donors(sort: str = "total"):
     donor_keys = {
