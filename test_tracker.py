@@ -13,14 +13,8 @@ import twitchAPI.oauth
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
-from twitchAPI.chat import (
-    BaseCommandMiddleware,
-    Chat,
-    ChatCommand,
-    ChatMessage,
-    ChatSub,
-    EventData,
-)
+from twitchAPI.chat import Chat, ChatCommand, ChatMessage, ChatSub, EventData
+from twitchAPI.chat.middleware import BaseCommandMiddleware
 from twitchAPI.eventsub.websocket import EventSubWebsocket
 from twitchAPI.helper import first
 from twitchAPI.oauth import UserAuthenticator
