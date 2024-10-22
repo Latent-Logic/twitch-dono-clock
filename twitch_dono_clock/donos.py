@@ -1,6 +1,7 @@
 import csv
 import logging
 from collections.abc import Iterable
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional, Union
 
@@ -72,6 +73,15 @@ class Donos(metaclass=Singleton):
         to_return = dict(self.donos)
         to_return[SUBS] = dict(to_return[SUBS])
         return to_return
+
+    def clear_csv(self) -> Path:
+        now = datetime.now()
+        new_filename = self.dono_path.parent / f"{self.dono_path.stem}.{now:%Y%m%d-%H%M%S}{self.dono_path.suffix}"
+        log.warning(f"Wiping CSV file, moving to {new_filename}")
+        self.dono_path.rename(new_filename)
+        self.dono_path.write_text(",".join(CSV_COLUMNS) + "\n")
+        self.reload_csv()
+        return new_filename
 
     def reload_csv(self):
         old_dict = self.to_dict()

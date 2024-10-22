@@ -691,6 +691,16 @@ async def put_donos_reload(password: str):
     return {"old": old_values, "new": Donos().to_dict()}
 
 
+@app.put("/admin/donos/wipe", response_class=JSONResponse)
+async def put_donos_wipe(password: str, are_you_sure: bool = False):
+    SETTINGS.raise_on_bad_password(password)
+    old_values = Donos().to_dict()
+    filename = None
+    if are_you_sure:
+        filename = Donos().clear_csv()
+    return {"old": old_values, "new": Donos().to_dict(), "backup": filename}
+
+
 if __name__ == "__main__":
     Pause.load_pause()
     Spins.load_spins()
