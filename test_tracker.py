@@ -493,13 +493,12 @@ async def get_events_targets():
     for row in Donos.csv_iter():
         if row["type"] not in donation_targets:
             continue
-        if not row["target"]:
-            continue
+        target = row["target"] or "<untagged>"
         value = float(row["amount"]) if row["type"] == "tips" else int(row["amount"])
-        if row["target"] in donation_targets[row["type"]]:
-            donation_targets[row["type"]][row["target"]] += value
+        if target in donation_targets[row["type"]]:
+            donation_targets[row["type"]][target] += value
         else:
-            donation_targets[row["type"]][row["target"]] = value
+            donation_targets[row["type"]][target] = value
     return donation_targets
 
 
