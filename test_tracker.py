@@ -359,7 +359,7 @@ async def lifespan(app: FastAPI):
 
     # you can directly register commands and their handlers
     if SETTINGS.twitch.enable_cmds:
-        chat.register_command_middleware(OnlyMyChat)
+        chat.register_command_middleware(OnlyMyChat())
         chat.register_command("tpause", pause_command)
         chat.register_command("tresume", resume_command)
         chat.register_command("tadd", add_time_command)
