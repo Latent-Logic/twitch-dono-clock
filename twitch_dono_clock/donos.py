@@ -142,6 +142,18 @@ class Donos(metaclass=Singleton):
             )
         )
 
+    def calc_points(self) -> float:
+        """Total points from chat donations"""
+        return sum(
+            (
+                self.bits * SETTINGS.bits.points,
+                self.tips * SETTINGS.tips.points,
+                self.subs_t1 * SETTINGS.subs.tier.t1.points,
+                self.subs_t2 * SETTINGS.subs.tier.t2.points,
+                self.subs_t3 * SETTINGS.subs.tier.t3.points,
+            )
+        )
+
     @property
     def tips(self) -> float:
         return self.donos[TIPS]
@@ -169,6 +181,10 @@ class Donos(metaclass=Singleton):
     @property
     def total(self) -> float:
         return self.calc_dollars()
+
+    @property
+    def points(self) -> int:
+        return int(self.calc_points())
 
 
 async def add_tip_command(cmd: ChatCommand):

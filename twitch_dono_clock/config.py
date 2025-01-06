@@ -85,12 +85,14 @@ class SetRegex(BaseModel):
 class SetItemValue(BaseModel):
     min: float
     money: float
+    points: float = 1.0
     msg: Dict[str, SetRegex] = Field(default_factory=dict)
 
 
 class SetBits(BaseModel):
     min: float
     money: float
+    points: float = 0.01
     animated_message_bits: int = 20
     giant_emote_bits: int = 30
     on_screen_bits: int = 40

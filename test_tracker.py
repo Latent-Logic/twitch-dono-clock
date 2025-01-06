@@ -206,6 +206,7 @@ async def raised_command(cmd: ChatCommand):
         "end_ts": End().end_ts,
         "end_min": End().end_min,
         "total_value": Donos().calc_dollars(),
+        "points": Donos().calc_points(),
         "countdown": calc_timer(),
         "bits": Donos().bits,
         "tips": Donos().tips,
@@ -411,6 +412,11 @@ async def get_live_stats_subs():
     return str(Donos().subs)
 
 
+@app.get("/live_stats/points", response_class=PlainTextResponse)
+async def get_live_stats_points():
+    return f"{Donos().calc_points():.02f}"
+
+
 @app.get("/live_stats/total_value", response_class=PlainTextResponse)
 async def get_total_value():
     return f"${Donos().calc_dollars():0.02f}"
@@ -441,6 +447,7 @@ async def traised_fields():
         "end_ts": End().end_ts,
         "end_min": End().end_min,
         "total_value": Donos().calc_dollars(),
+        "points": Donos().calc_points(),
         "countdown": calc_timer(),
         "bits": Donos().bits,
         "tips": Donos().tips,
@@ -562,14 +569,14 @@ async def get_live_timer():
 
 @app.get("/live_counter", response_class=HTMLResponse)
 async def get_live_counter(
-    item: Optional[Literal["tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3", "total"]] = None
+    item: Optional[Literal["tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3", "total", "points"]] = None
 ):
     if item is None:
         return (
             "<html><body>"
             ", ".join(
                 f"<a href='?item={s}'>{s}</a>"
-                for s in ("tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3", "total")
+                for s in ("tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3", "total", "points")
             )
             + "</body></html>"
         )
@@ -598,7 +605,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.websocket("/ws_counter")
 async def websocket_counter_endpoint(
-    websocket: WebSocket, item: Literal["tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3", "total"]
+    websocket: WebSocket, item: Literal["tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3", "total", "points"]
 ):
     last_sent = None
     money = {"tips", "total"}

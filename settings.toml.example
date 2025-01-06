@@ -38,6 +38,7 @@ value_div = 25
 [tips]
 min = 1
 money = 1
+points = 1
 
 [tips.msg.StreamElements]
 # Example: StreamElements: User2 just tipped $25.00 emoteHeart
@@ -52,6 +53,7 @@ target = "KoFi"
 [bits]
 min = 0.01
 money = 0.01
+points = 0.01
 animated_message_bits = 20
 giant_emote_bits = 30
 on_screen_bits = 40  # Currently not supported, it doesn't show up in chat
@@ -70,9 +72,9 @@ Prime = "t1"
 2000 = "t2"
 3000 = "t3"
 [subs.tier]
-t1 = {min = 6, money = 3}
-t2 = {min = 10, money = 5}
-t3 = {min = 25, money = 12.5}
+t1 = {min = 6, money = 3, points = 3}
+t2 = {min = 10, money = 5, points = 5}
+t3 = {min = 25, money = 12.5, points = 12.5}
 
 
 [fmt]
