@@ -48,7 +48,14 @@ class Donos(metaclass=Singleton):
             if row["type"] == BITS:
                 donos[BITS] += int(row["amount"])
             elif row["type"] == TIPS:
-                donos[TIPS] += float(row["amount"])
+                conv = SETTINGS.tips.convert.get(row["target"])
+                amount = float(row["amount"])
+                if conv:
+                    log.info(
+                        f"Converting {row['target']} dono of {amount} to {amount * conv.ratio} from {conv.src} to {conv.target}"
+                    )
+                    amount *= conv.ratio
+                donos[TIPS] += amount
             elif row["type"].startswith("subs_"):
                 if row["type"].endswith("_t1"):
                     donos[SUBS][T1] += int(row["amount"])
@@ -94,7 +101,14 @@ class Donos(metaclass=Singleton):
         if type == BITS:
             self.donos[BITS] += amount
         elif type == TIPS:
-            self.donos[TIPS] += amount
+            conv = SETTINGS.tips.convert.get(target)
+            if conv:
+                log.info(
+                    f"Converting {target} dono of {amount} to {amount*conv.ratio} from {conv.src} to {conv.target}"
+                )
+                self.donos[TIPS] += amount * conv.ratio
+            else:
+                self.donos[TIPS] += amount
         elif type == SUBS_T1:
             self.donos[SUBS][T1] += amount
         elif type == SUBS_T2:

@@ -5,7 +5,8 @@ from pathlib import Path
 from typing import Iterable, Tuple
 from zoneinfo import ZoneInfo
 
-from test_tracker import calc_timer, calc_time_so_far
+from test_tracker import calc_time_so_far, calc_timer
+from twitch_dono_clock.config import SETTINGS
 from twitch_dono_clock.donos import BITS, SUBS, T1, T2, T3, TIPS, Donos
 from twitch_dono_clock.end import End
 from twitch_dono_clock.pause import Pause
@@ -47,7 +48,12 @@ def load_csv(pause_file: Path, tz: tzinfo):
         if row["type"] == BITS:
             Donos().donos[BITS] += int(row["amount"])
         elif row["type"] == TIPS:
-            Donos().donos[TIPS] += float(row["amount"])
+            conv = SETTINGS.tips.convert.get(row["target"])
+            amount = float(row["amount"])
+            if conv:
+                Donos().donos[TIPS] += amount * conv.ratio
+            else:
+                Donos().donos[TIPS] += amount
         elif row["type"].startswith("subs_"):
             if row["type"].endswith("_t1"):
                 Donos().donos[SUBS][T1] += int(row["amount"])

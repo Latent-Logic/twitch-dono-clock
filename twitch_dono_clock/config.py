@@ -82,11 +82,18 @@ class SetRegex(BaseModel):
         return re.compile(self.regex)
 
 
-class SetItemValue(BaseModel):
+class Conversions(BaseModel):
+    src: str
+    target: str
+    ratio: float
+
+
+class SetTips(BaseModel):
     min: float
     money: float
     points: float = 1.0
     msg: Dict[str, SetRegex] = Field(default_factory=dict)
+    convert: dict[str, Conversions] = Field(default_factory=dict)
 
 
 class SetBits(BaseModel):
@@ -99,10 +106,16 @@ class SetBits(BaseModel):
     msg: Dict[str, SetRegex] = Field(default_factory=dict)
 
 
+class SetSubValue(BaseModel):
+    min: float
+    money: float
+    points: float = 1.0
+
+
 class SetSubsTiers(BaseModel):
-    t1: SetItemValue
-    t2: SetItemValue
-    t3: SetItemValue
+    t1: SetSubValue
+    t2: SetSubValue
+    t3: SetSubValue
 
 
 class SetSubs(BaseModel):
@@ -134,7 +147,7 @@ class Settings(BaseModel):
     db: SetDB = Field(default_factory=SetDB)
     output: SetOutput
     spins: SetSpins = Field(default_factory=SetSpins)
-    tips: SetItemValue
+    tips: SetTips
     bits: SetBits
     subs: SetSubs
     fmt: SetFmt
