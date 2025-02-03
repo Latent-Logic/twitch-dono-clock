@@ -470,6 +470,18 @@ async def get_events(timezone: Optional[str] = None):
         except ZoneInfoNotFoundError as e:
             return f"<html><body><xmp>{e}</xmp></body></html>"
 
+    conversions = ""
+    if SETTINGS.tips.convert:
+        conversions += (
+            "Tips of the following types are in a non-USD currency\n <table>\n"
+            "<tr><th>Type</th><th>From</th><th>To</th><th>Ratio</th></tr>"
+        )
+        for tip_type, conv in SETTINGS.tips.convert.items():
+            conversions += (
+                f"<tr><td>{tip_type}</td><td>{conv.src}</td><td>{conv.target}</td><td>{conv.ratio}</td></tr>\n"
+            )
+        conversions += "</table>\n\n"
+
     events_per_day = {}
     for row in Donos.csv_iter():
         row["time"]: datetime = datetime.fromtimestamp(int(row["time"]) / 1000).astimezone(tz)
@@ -486,7 +498,7 @@ async def get_events(timezone: Optional[str] = None):
         build_table += "</table>\n"
     style = """table {border: 2px solid rgb(140 140 140);}
     th,td {border: 1px solid rgb(160 160 160);}"""
-    return f"<html><head><style>{style}</style></head><body>{build_table}</body></html>"
+    return f"<html><head><style>{style}</style></head><body>{conversions}{build_table}</body></html>"
 
 
 @app.get("/events_csv", response_class=PlainTextResponse)
