@@ -501,11 +501,17 @@ async def get_events_targets():
         if row["type"] not in donation_targets:
             continue
         target = row["target"] or "<untagged>"
-        value = float(row["amount"]) if row["type"] == "tips" else int(row["amount"])
-        if target in donation_targets[row["type"]]:
-            donation_targets[row["type"]][target] += value
+        if row["type"] == TIPS:
+            amount = float(row["amount"])
+            conv = SETTINGS.tips.convert.get(row["target"])
+            if conv:
+                amount *= conv.ratio
         else:
-            donation_targets[row["type"]][target] = value
+            amount = int(row["amount"])
+        if target in donation_targets[row["type"]]:
+            donation_targets[row["type"]][target] += amount
+        else:
+            donation_targets[row["type"]][target] = amount
     return donation_targets
 
 
@@ -523,7 +529,13 @@ async def get_donors(sort: str = "total"):
         user_db = donor_db.setdefault(
             row["user"].lower(), {"name": row["user"], "total": 0, **{k: 0 for k in CSV_TYPES}}
         )
-        amount = float(row["amount"]) if row["type"] == TIPS else int(row["amount"])
+        if row["type"] == TIPS:
+            amount = float(row["amount"])
+            conv = SETTINGS.tips.convert.get(row["target"])
+            if conv:
+                amount *= conv.ratio
+        else:
+            amount = int(row["amount"])
         user_db[row["type"]] += amount
         user_db["total"] += amount * SETTINGS.get_value(row["type"])
 
