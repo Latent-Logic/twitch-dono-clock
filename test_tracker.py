@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from twitchAPI.chat import Chat, ChatCommand, ChatMessage, ChatSub, EventData
-from twitchAPI.chat.middleware import BaseCommandMiddleware
+from twitchAPI.chat.middleware import SharedChatOnlyCurrent
 from twitchAPI.eventsub.websocket import EventSubWebsocket
 from twitchAPI.helper import first
 from twitchAPI.oauth import UserAuthenticator
@@ -67,18 +67,6 @@ def config_logging(level: str = "INFO"):
 
 
 config_logging()
-
-
-class OnlyMyChat(BaseCommandMiddleware):
-    async def can_execute(self, command: ChatCommand) -> bool:
-        """Only allow execution of command is from this chat"""
-        if "source-room-id" in command._parsed["tags"]:
-            if command._parsed["tags"]["source-room-id"] != command._parsed["tags"]["room-id"]:
-                return False
-        return True
-
-    async def was_executed(self, command: ChatCommand):
-        pass  # Nothing to track
 
 
 # this will be called when the event READY is triggered, which will be on bot start
@@ -345,7 +333,7 @@ async def lifespan(app: FastAPI):
 
     # you can directly register commands and their handlers
     if SETTINGS.twitch.enable_cmds:
-        chat.register_command_middleware(OnlyMyChat())
+        chat.register_command_middleware(SharedChatOnlyCurrent())
         chat.register_command("tpause", pause_command)
         chat.register_command("tresume", resume_command)
         chat.register_command("tadd", add_time_command)
