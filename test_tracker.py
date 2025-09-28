@@ -5,7 +5,7 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import toml
@@ -22,7 +22,7 @@ from twitchAPI.twitch import Twitch
 from twitchAPI.type import AuthScope, ChatEvent, TwitchAPIException
 from websockets import ConnectionClosedOK
 
-from twitch_dono_clock.config import SETTINGS
+from twitch_dono_clock.config import SETTINGS, load_overrides, override_value
 from twitch_dono_clock.donos import (
     BITS,
     CSV_COLUMNS,
@@ -730,6 +730,24 @@ async def put_donos_wipe(password: str, are_you_sure: bool = False):
     if are_you_sure:
         filename = Donos().clear_csv()
     return {"old": old_values, "new": Donos().to_dict(), "backup": filename}
+
+
+@app.put("/admin/settings/overrides", response_class=JSONResponse)
+async def put_settings_overrides(password: str):
+    SETTINGS.raise_on_bad_password(password)
+    try:
+        return load_overrides()
+    except Exception as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@app.put("/admin/settings/override_value", response_class=JSONResponse)
+async def put_settings_overrides(password: str, key: str, value: Any):
+    SETTINGS.raise_on_bad_password(password)
+    try:
+        return override_value(key, value)
+    except Exception as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 if __name__ == "__main__":

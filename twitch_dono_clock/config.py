@@ -1,10 +1,14 @@
+import logging
 import re
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Union
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import toml
 from fastapi import HTTPException
 from pydantic import BaseModel, Field, SecretStr, model_validator
+
+log = logging.getLogger(__name__)
 
 
 class SetTwitch(BaseModel):
@@ -185,7 +189,64 @@ class Settings(BaseModel):
             raise HTTPException(status_code=401, detail="Password is invalid")
 
 
+OVERRIDE_FILE = Path("db/overrides.toml")
+OVERRIDES_KEY = "overrides"
+
+
+def load_overrides() -> dict[str, Any]:
+    if not OVERRIDE_FILE.is_file():
+        log.warning(f"No override file found at {OVERRIDE_FILE}, creating one")
+        OVERRIDE_FILE.parent.mkdir(exist_ok=True, parents=True)
+        with OVERRIDE_FILE.open("w") as f:
+            toml.dump({OVERRIDES_KEY: {}}, f)
+    try:
+        override_blob = toml.load(OVERRIDE_FILE)
+        overrides = override_blob[OVERRIDES_KEY]
+    except Exception:
+        raise
+    return overrides
+
+
+def _pydantic_cludge_coerce(obj: BaseModel, key: str, value: Any):
+    blob = obj.model_dump()
+    blob[key] = value
+    new_obj = obj.model_validate(blob)
+    return getattr(new_obj, key)
+
+
+def implement_overrides(overrides: dict[str, Any], settings: Settings):
+    for key, value in overrides.items():
+        *parts, final_key = key.split(".")
+        obj = settings
+        try:
+            for part in parts:
+                obj = getattr(obj, part)
+            setattr(obj, final_key, _pydantic_cludge_coerce(obj, final_key, value))
+        except (AttributeError, KeyError, TypeError):
+            log.error(f"Failure to process override of {key} with {value}")
+            raise
+
+
 try:
     SETTINGS = Settings.model_validate(toml.load("settings.toml"), strict=True)
+    implement_overrides(load_overrides(), SETTINGS)
 except Exception:
     raise Exception("Failed to load settings from settings.toml, copy settings.toml.example and edit to needs")
+
+
+def override_value(key: str, value: Any) -> dict[str, Any]:
+    *parts, final_key = key.split(".")
+    obj = SETTINGS
+    try:
+        existing_overrides = load_overrides()
+        for part in parts:
+            obj = getattr(obj, part)
+        value = _pydantic_cludge_coerce(obj, final_key, value)
+        setattr(obj, final_key, value)
+        existing_overrides[key] = value
+        with OVERRIDE_FILE.open("w") as f:
+            toml.dump({OVERRIDES_KEY: existing_overrides}, f)
+    except (AttributeError, KeyError, TypeError):
+        log.warning(f"Failed to on-the-fly override {key} with {value}")
+        raise
+    return existing_overrides
