@@ -184,6 +184,18 @@ class Settings(BaseModel):
         if type_name == "subs_t3":
             return self.subs.tier.t3.money
 
+    def get_points(self, type_name: str) -> Union[float, int]:
+        if type_name == "bits":
+            return self.bits.points
+        if type_name == "tips":
+            return self.tips.points
+        if type_name == "subs_t1":
+            return self.subs.tier.t1.points
+        if type_name == "subs_t2":
+            return self.subs.tier.t2.points
+        if type_name == "subs_t3":
+            return self.subs.tier.t3.points
+
     def raise_on_bad_password(self, to_check: str):
         if to_check != self.output.admin_pass.get_secret_value().format(channel=self.twitch.channel):
             raise HTTPException(status_code=401, detail="Password is invalid")
