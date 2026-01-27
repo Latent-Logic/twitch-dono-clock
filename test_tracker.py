@@ -722,6 +722,29 @@ async def put_settings_overrides(password: str, key: str, value: Any):
         raise HTTPException(status_code=409, detail=str(e))
 
 
+if Spins.enabled:
+
+    @app.put("/admin/spins/increment", response_class=JSONResponse)
+    async def put_spins_increment(password: str, increment_amount: int = 1):
+        SETTINGS.raise_on_bad_password(password)
+        try:
+            old_value = Spins().performed
+            Spins().spin_performed(increment_amount)
+            return {"performed": increment_amount, "total_old": old_value, "total_new": Spins().performed}
+        except Exception as e:
+            raise HTTPException(status_code=409, detail=str(e))
+
+    @app.put("/admin/spins/set", response_class=JSONResponse)
+    async def put_settings_overrides(password: str, new_total: int):
+        SETTINGS.raise_on_bad_password(password)
+        try:
+            old_value = Spins().performed
+            Spins().set_performed(new_total)
+            return {"total_old": old_value, "total_new": Spins().performed}
+        except Exception as e:
+            raise HTTPException(status_code=409, detail=str(e))
+
+
 if __name__ == "__main__":
     config_logging()
 

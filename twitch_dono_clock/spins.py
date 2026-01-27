@@ -39,12 +39,14 @@ class Spins(metaclass=Singleton):
     def performed(self) -> int:
         return self._performed
 
-    def spin_performed(self):
-        self._performed += 1
+    def spin_performed(self, inc_amount: int = 1):
+        self._performed += inc_amount
+        log.info(f"Spin counter incremented by {inc_amount} to {self._performed}")
         self.save()
 
-    def set_performed(self, new: int):
-        self._performed = new
+    def set_performed(self, new_value: int):
+        log.info(f"Spin counter set from {self._performed} to {new_value}")
+        self._performed = new_value
         self.save()
 
     def calc_todo(self, value: float) -> float:
@@ -67,12 +69,9 @@ async def spin_done_command(cmd: ChatCommand):
         Spins().spin_performed()
         fmt_dict["spins_done"] = Spins().performed
         response = "Spin counter increased by 1, now {spins_done}/{spins_to_do}".format(**fmt_dict)
+    elif parameters[0].lower() == "check":
+        response = "Spin counter is at {spins_done}/{spins_to_do}".format(**fmt_dict)
     elif len(parameters) == 1:
-        if parameters[0].lower() == "check":
-            response = "Spin counter is at {spins_done}/{spins_to_do}".format(**fmt_dict)
-            log.info(response)
-            await cmd.reply(response)
-            return
         try:
             Spins().set_performed(int(parameters[0]))
         except ValueError:
