@@ -108,6 +108,8 @@ async def on_message(msg: ChatMessage):
                 type=BITS,
                 amount=SETTINGS.bits.animated_message_bits,
             )
+        elif fancy_msg == "highlighted-message":
+            pass  # This is the channel point highlighted message, not bits
         else:
             log.info(f"{msg.sent_timestamp} {msg.user.display_name} sent an unknown {fancy_msg=} - {msg.text}")
     for user, regex, dono_type, target in SETTINGS.compiled_re:
