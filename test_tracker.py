@@ -76,9 +76,9 @@ async def on_ready(_ready_event: EventData):
 
 # this will be called whenever a message in a channel was send by either the bot OR another user
 async def on_message(msg: ChatMessage):
-    if "source-room-id" in msg._parsed["tags"]:
-        if msg._parsed["tags"]["source-room-id"] != msg._parsed["tags"]["room-id"]:
-            log.debug(f"Skipping shared-chat message from {msg._parsed['tags']['source-room-id']} saying {msg.text}")
+    if msg.source_room_id:
+        if msg.source_room_id != msg.room.room_id:
+            log.debug(f"Skipping shared-chat message from {msg.source_room_id} saying {msg.text}")
             return
     log.debug(f"{msg.user.name=} {msg._parsed=}")
     if msg.bits:
