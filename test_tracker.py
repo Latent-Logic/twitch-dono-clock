@@ -66,9 +66,6 @@ def config_logging(level: str = "INFO"):
     chat_logger.addFilter(oauth_filter)
 
 
-config_logging()
-
-
 # this will be called when the event READY is triggered, which will be on bot start
 async def on_ready(_ready_event: EventData):
     log.info(f"Bot is ready for work, should have already joined channel {SETTINGS.twitch.channel}")
@@ -724,6 +721,8 @@ async def put_settings_overrides(password: str, key: str, value: Any):
 
 
 if __name__ == "__main__":
+    config_logging()
+
     Pause.load_pause()
     Spins.load_spins()
     Donos.load_csv()
