@@ -5,11 +5,11 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Annotated, Any, Literal, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import toml
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from twitchAPI.chat import Chat, ChatCommand, ChatMessage, ChatSub, EventData
@@ -725,7 +725,7 @@ async def put_settings_overrides(password: str, key: str, value: Any):
 if Spins.enabled:
 
     @app.put("/admin/spins/increment", response_class=JSONResponse)
-    async def put_spins_increment(password: str, increment_amount: int = 1):
+    async def put_spins_increment(password: str, increment_amount: Annotated[int, Query(ge=1)] = 1):
         SETTINGS.raise_on_bad_password(password)
         try:
             old_value = Spins().performed
@@ -735,7 +735,7 @@ if Spins.enabled:
             raise HTTPException(status_code=409, detail=str(e))
 
     @app.put("/admin/spins/set", response_class=JSONResponse)
-    async def put_settings_overrides(password: str, new_total: int):
+    async def put_settings_overrides(password: str, new_total: Annotated[int, Query(ge=0)]):
         SETTINGS.raise_on_bad_password(password)
         try:
             old_value = Spins().performed

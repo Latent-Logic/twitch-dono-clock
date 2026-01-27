@@ -40,11 +40,13 @@ class Spins(metaclass=Singleton):
         return self._performed
 
     def spin_performed(self, inc_amount: int = 1):
+        assert isinstance(inc_amount, int) and inc_amount >= 1
         self._performed += inc_amount
         log.info(f"Spin counter incremented by {inc_amount} to {self._performed}")
         self.save()
 
     def set_performed(self, new_value: int):
+        assert isinstance(new_value, int) and new_value >= 0
         log.info(f"Spin counter set from {self._performed} to {new_value}")
         self._performed = new_value
         self.save()
