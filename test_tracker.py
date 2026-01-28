@@ -593,6 +593,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 await asyncio.sleep(0.5)
             except ConnectionClosedOK:
                 break
+            except asyncio.CancelledError:
+                break
     except WebSocketDisconnect:
         pass
 
@@ -616,6 +618,8 @@ async def websocket_counter_endpoint(
                     last_sent = cur_msg
                 await asyncio.sleep(1)
             except ConnectionClosedOK:
+                break
+            except asyncio.CancelledError:
                 break
     except WebSocketDisconnect:
         pass
