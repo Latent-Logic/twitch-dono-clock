@@ -109,8 +109,6 @@ class Pause(metaclass=Singleton):
 
     def set_pause_start(self, time: datetime, reason: Optional[str] = None):
         existing_start = self._start
-        if time > datetime.now(tz=timezone.utc):
-            raise PauseException(f"{time} is in the future, not starting a pause before now.")
         self._start = time
         self.save()
         reason_msg = f" because {reason}" if reason else ""
