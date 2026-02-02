@@ -363,32 +363,38 @@ class JSONResponse(JSONResponse):
 
 @app.get("/live_stats", response_class=JSONResponse)
 async def get_live_stats():
+    """Get a current snapshot of pause state, donation breakdown, and end state"""
     full_stats = {"pause": Pause().to_dict(), "donos": Donos().to_dict(), "end": End().to_dict()}
     return jsonable_encoder(full_stats)
 
 
 @app.get("/live_stats/bits", response_class=PlainTextResponse)
 async def get_live_stats_bits():
+    """Get the current total number of Twitch bits donated"""
     return f"{Donos().bits}"
 
 
 @app.get("/live_stats/tips", response_class=PlainTextResponse)
 async def get_live_stats_tips():
+    """Get a current snapshot of total amount of tips donated"""
     return f"${Donos().tips:.02f}"
 
 
 @app.get("/live_stats/subs", response_class=PlainTextResponse)
 async def get_live_stats_subs():
+    """Get a current total of subscriptions, including all tiers of subs"""
     return str(Donos().subs)
 
 
 @app.get("/live_stats/points", response_class=PlainTextResponse)
 async def get_live_stats_points():
+    """Get a current total of donation points reached"""
     return f"{Donos().calc_points():.02f}"
 
 
 @app.get("/live_stats/total_value", response_class=PlainTextResponse)
 async def get_total_value():
+    """Get a current snapshot of total value raised by the donathon"""
     return f"${Donos().calc_dollars():0.02f}"
 
 
@@ -396,16 +402,24 @@ if Spins.enabled:
 
     @app.get("/live_stats/spins", response_class=PlainTextResponse)
     async def get_total_value():
+        """Get a current total for spins performed vs total number of spins paid for by community"""
         return f"{Spins().performed}/{Spins().calc_todo(Donos().calc_dollars()):0.1f}"
 
 
 @app.get("/calc_timer", response_class=PlainTextResponse)
 async def get_calc_timer():
+    """Get a single snapshot of the timer at time of call"""
     return calc_timer()
 
 
 @app.get("/traised", response_class=JSONResponse)
 async def traised_fields():
+    """Get a list of all the fields available for the !traised chat command
+
+    The default !traised command is:
+    "Raised ${total_value:.2f} and has run for {so_far_total_min:.2f}/{min_end_at:.2f} minutes"
+    but can be customized in the settings.toml file.
+    """
     so_far_total_min = calc_time_so_far().total_seconds() / 60
     return {
         "so_far_total_min": so_far_total_min,
@@ -432,6 +446,11 @@ async def traised_fields():
 
 @app.get("/events", response_class=HTMLResponse)
 async def get_events(timezone: Optional[str] = None):
+    """Get a list of all donation events chunked by day in given timezone or UTC
+
+    Valid Timezone strings can be found under `TZ Identifier` at the following page:
+    https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+    """
     if timezone is None:
         tz = ZoneInfo("UTC")
     else:
@@ -473,11 +492,16 @@ async def get_events(timezone: Optional[str] = None):
 
 @app.get("/events_csv", response_class=PlainTextResponse)
 async def get_events_csv():
+    """A raw dump of the donation events CSV file for programmatic parsing
+
+    The timestamps are in UTC Unix timestamps with milliseconds
+    """
     return Donos.dono_path.read_text()
 
 
 @app.get("/events_targets", response_class=JSONResponse)
 async def get_events_targets():
+    """Sum of tips and bits by target string, useful for grouping sources when tagged"""
     donation_targets = {"tips": {}, "bits": {}}
     for row in Donos.csv_iter():
         if row["type"] not in donation_targets:
@@ -499,6 +523,9 @@ async def get_events_targets():
 
 @app.get("/donors", response_class=HTMLResponse)
 async def get_donors(sort: str = "total"):
+    """Sum of donations by user. Click column headers to sort by that column
+
+    NOTE: This groups by case-insensitive string, KoFi donations aren't tied to twitch username"""
     donor_keys = {
         "name": (lambda x: x["name"].lower(), False),
         "total": (lambda x: x["total"], True),
@@ -558,6 +585,7 @@ websocket_html = """
 
 @app.get("/live", response_class=HTMLResponse)
 async def get_live_timer():
+    """Live updating countdown timer for use in OBS Browser Source"""
     return websocket_html.format(name="countdown", css=SETTINGS.output.css, hostname=SETTINGS.output.public, path="ws")
 
 
@@ -565,6 +593,7 @@ async def get_live_timer():
 async def get_live_counter(
     item: Optional[Literal["tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3", "total", "points"]] = None
 ):
+    """Live updating sum of donation totals. Without item it provides links to available options"""
     if item is None:
         return (
             "<html><body>"
@@ -585,6 +614,7 @@ async def get_live_counter(
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    """Websocket that sends out the current timer twice a second to keep accurate status"""
     await websocket.accept()
     try:
         while True:
@@ -603,6 +633,7 @@ async def websocket_endpoint(websocket: WebSocket):
 async def websocket_counter_endpoint(
     websocket: WebSocket, item: Literal["tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3", "total", "points"]
 ):
+    """Websocket that pushes current total for given item, then sends update any time that number updates"""
     last_sent = None
     money = {"tips", "total"}
     await websocket.accept()
@@ -627,6 +658,12 @@ async def websocket_counter_endpoint(
 
 @app.put("/admin/end/clear", response_class=JSONResponse)
 async def put_end_clear(password: str):
+    """Clear the end latch at 00:00:00 and continue as if it hadn't ended
+
+    NOTE: If there haven't been donations then this will just re-latch the end after being cleared.
+    This is mainly for use if a big donation comes in right after the timer reaches the end and the
+    steamer wants to count that donation and keep going. Otherwise the donation counts in totals but
+    not the timer."""
     SETTINGS.raise_on_bad_password(password)
     old_values = End().to_dict()
     try:
@@ -638,6 +675,7 @@ async def put_end_clear(password: str):
 
 @app.put("/admin/pause/begin", response_class=JSONResponse)
 async def put_pause_begin(password: str, time: Optional[datetime] = None):
+    """Start a pause at the given timestamp, if not specified it will start a pause when called."""
     SETTINGS.raise_on_bad_password(password)
     old_values = Pause().to_dict()
     try:
@@ -653,6 +691,7 @@ async def put_pause_begin(password: str, time: Optional[datetime] = None):
 
 @app.put("/admin/pause/resume", response_class=JSONResponse)
 async def put_pause_resume(password: str, time: Optional[datetime] = None):
+    """Resume from a pause at the given timestamp, if not specified it will resume at call time."""
     SETTINGS.raise_on_bad_password(password)
     old_values = Pause().to_dict()
     try:
@@ -668,6 +707,7 @@ async def put_pause_resume(password: str, time: Optional[datetime] = None):
 
 @app.put("/admin/pause/abort", response_class=JSONResponse)
 async def put_pause_abort(password: str):
+    """Clear a paused state without changing the total number of minutes paused"""
     SETTINGS.raise_on_bad_password(password)
     old_values = Pause().to_dict()
     try:
@@ -679,6 +719,10 @@ async def put_pause_abort(password: str):
 
 @app.put("/admin/pause/minutes", response_class=JSONResponse)
 async def put_set_minutes(password: str, minutes: float):
+    """Hard reset the number of minutes paused.
+
+    NOTE: This will return the old number of minutes before the change. This does not change
+    the state of being paused, just how many minutes the bot thinks it has been paused total"""
     SETTINGS.raise_on_bad_password(password)
     old_values = Pause().to_dict()
     try:
@@ -690,6 +734,7 @@ async def put_set_minutes(password: str, minutes: float):
 
 @app.put("/admin/donos/reload", response_class=JSONResponse)
 async def put_donos_reload(password: str):
+    """Reload the donations CSV file from disk, really only useful w/ filesystem access to fix issues on disk"""
     SETTINGS.raise_on_bad_password(password)
     old_values = Donos().to_dict()
     Donos().reload_csv()
@@ -698,6 +743,7 @@ async def put_donos_reload(password: str):
 
 @app.put("/admin/donos/wipe", response_class=JSONResponse)
 async def put_donos_wipe(password: str, are_you_sure: bool = False):
+    """Clear the donations file by moving old file to timestamped backup and starting a fresh CSV file"""
     SETTINGS.raise_on_bad_password(password)
     old_values = Donos().to_dict()
     filename = None
@@ -708,6 +754,7 @@ async def put_donos_wipe(password: str, are_you_sure: bool = False):
 
 @app.put("/admin/settings/overrides", response_class=JSONResponse)
 async def put_settings_overrides(password: str):
+    """Show the settings overrides that have been changed on the fly"""
     SETTINGS.raise_on_bad_password(password)
     try:
         return load_overrides()
@@ -717,6 +764,16 @@ async def put_settings_overrides(password: str):
 
 @app.put("/admin/settings/override_value", response_class=JSONResponse)
 async def put_settings_overrides(password: str, key: str, value: Any):
+    """Allow overriding settings on the fly by specifying a key and new value
+
+    Available settings can be seen at the example TOML file at:
+    https://github.com/Latent-Logic/twitch-dono-clock/blob/main/settings.toml.example
+
+    For example to change how many points a TT sub is worth, add an override of:
+    key: subs.tier.t3.points
+    value: 42
+
+    The value must be a valid string representation for that key"""
     SETTINGS.raise_on_bad_password(password)
     try:
         return override_value(key, value)
@@ -728,6 +785,7 @@ if Spins.enabled:
 
     @app.put("/admin/spins/increment", response_class=JSONResponse)
     async def put_spins_increment(password: str, increment_amount: Annotated[int, Query(ge=1)] = 1):
+        """Increase the spin count by increment_amount, or 1 if not specified"""
         SETTINGS.raise_on_bad_password(password)
         try:
             old_value = Spins().performed
@@ -738,6 +796,7 @@ if Spins.enabled:
 
     @app.put("/admin/spins/set", response_class=JSONResponse)
     async def put_settings_overrides(password: str, new_total: Annotated[int, Query(ge=0)]):
+        """Hard set the spin count to new_total"""
         SETTINGS.raise_on_bad_password(password)
         try:
             old_value = Spins().performed
