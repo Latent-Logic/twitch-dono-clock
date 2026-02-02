@@ -1,5 +1,6 @@
 """Twitch donothon clock based on reading chat"""
 import asyncio
+import html
 import json
 import logging
 from contextlib import asynccontextmanager
@@ -457,7 +458,7 @@ async def get_events(timezone: Optional[str] = None):
         try:
             tz = ZoneInfo(timezone)
         except ZoneInfoNotFoundError as e:
-            return f"<html><body><xmp>{e}</xmp></body></html>"
+            return f"<html><body><xmp>{html.escape(e)}</xmp></body></html>"
 
     conversions = ""
     if SETTINGS.tips.convert:
@@ -532,7 +533,7 @@ async def get_donors(sort: str = "total"):
         **{k: (lambda x, y=k: x[y], True) for k in CSV_TYPES},
     }
     if sort not in donor_keys:
-        return f"<html><body><xmp>{sort} not in {tuple(donor_keys.keys())}</xmp></body></html>"
+        return f"<html><body><xmp>{html.escape(sort)} not in {tuple(donor_keys.keys())}</xmp></body></html>"
     donor_db = {}
     for row in Donos.csv_iter():
         user_db = donor_db.setdefault(
