@@ -243,6 +243,9 @@ def calc_timer(handle_end: bool = True) -> str:
     if Pause().is_paused():
         pause_format = SETTINGS.fmt.countdown_pause
         return pause_format.format(clock=time_str)
+    elif SETTINGS.end.max_minutes and Donos().calc_total_minutes() >= SETTINGS.end.max_minutes:
+        maxed_format = SETTINGS.fmt.countdown_max
+        return maxed_format.format(clock=time_str)
     else:
         return time_str
 

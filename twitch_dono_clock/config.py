@@ -130,7 +130,8 @@ class SetSubs(BaseModel):
 
 
 class SetFmt(BaseModel):
-    countdown_pause: str
+    countdown_pause: str = "{clock} PAUSED"
+    countdown_max: str = "🔒{clock}"
     cmd_blocked: str
     cmd_after_end: str
     tpause_success: str

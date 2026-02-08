@@ -79,6 +79,7 @@ t3 = {min = 25, money = 12.5, points = 12.5}
 
 [fmt]
 countdown_pause = "{clock} PAUSED"
+countdown_max= "🔒{clock}"
 cmd_blocked = "Non-mod user {user} just tried to !{cmd}"
 cmd_after_end = "Can't run !{cmd} because timer ended at {end_min} minutes"
 tpause_success = "Pause started"
