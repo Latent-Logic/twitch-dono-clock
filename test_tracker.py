@@ -213,8 +213,8 @@ def calc_end() -> timedelta:
     if End().end_min:
         return timedelta(minutes=End().end_min)
     minutes = Donos().calc_total_minutes()
-    if SETTINGS.end.max_minutes:
-        minutes = min(minutes, SETTINGS.end.max_minutes)
+    if End.max_minutes:
+        minutes = min(minutes, End.max_minutes)
     return timedelta(minutes=minutes)
 
 
@@ -240,14 +240,11 @@ def calc_timer(handle_end: bool = True) -> str:
     minutes = int(remaining.total_seconds() / 60) % 60
     seconds = int(remaining.total_seconds()) % 60
     time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    if End.max_minutes and Donos().calc_total_minutes() >= End.max_minutes:
+        time_str = SETTINGS.fmt.countdown_max.format(clock=time_str)
     if Pause().is_paused():
-        pause_format = SETTINGS.fmt.countdown_pause
-        return pause_format.format(clock=time_str)
-    elif SETTINGS.end.max_minutes and Donos().calc_total_minutes() >= SETTINGS.end.max_minutes:
-        maxed_format = SETTINGS.fmt.countdown_max
-        return maxed_format.format(clock=time_str)
-    else:
-        return time_str
+        time_str = SETTINGS.fmt.countdown_pause.format(clock=time_str)
+    return time_str
 
 
 async def channel_offline(_event):

@@ -21,6 +21,7 @@ class EndNotEnded(EndException):
 
 class End(metaclass=Singleton):
     end_file = Path(SETTINGS.db.end_mark)
+    max_minutes = SETTINGS.end.max_minutes
 
     def __init__(
         self, end_min: Optional[float] = None, end_ts: Optional[datetime] = None, ended_at_max: Optional[bool] = None
@@ -69,10 +70,10 @@ class End(metaclass=Singleton):
         now = datetime.now(tz=timezone.utc)
         self.end_min = available_time.total_seconds() / 60
         self.end_ts = now - (time_so_far - available_time)
-        if SETTINGS.end.max_minutes == 0:
+        if self.max_minutes == 0:
             self.ended_at_max = False
         else:
-            self.ended_at_max = calc_total_minutes() >= SETTINGS.end.max_minutes
+            self.ended_at_max = calc_total_minutes() >= self.max_minutes
 
         log.info(f"Timer has ended! {self.end_ts.isoformat()} w/ {self.end_min:.2f}min")
         self.save()
