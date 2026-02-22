@@ -753,6 +753,12 @@ async def put_donos_wipe(password: str, are_you_sure: bool = False):
     return {"old": old_values, "new": Donos().to_dict(), "backup": filename}
 
 
+@app.get("/admin/settings", response_class=JSONResponse)
+async def get_settings(password: str):
+    SETTINGS.raise_on_bad_password(password)
+    return SETTINGS.model_dump()
+
+
 @app.put("/admin/settings/overrides", response_class=JSONResponse)
 async def put_settings_overrides(password: str):
     """Show the settings overrides that have been changed on the fly"""
