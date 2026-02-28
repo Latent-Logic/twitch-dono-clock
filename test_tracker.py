@@ -30,7 +30,6 @@ from twitch_dono_clock.config import (
     override_value,
 )
 from twitch_dono_clock.donos import CSV_COLUMNS, Donos, add_tip_command
-from twitch_dono_clock.end import End, EndException
 from twitch_dono_clock.pause import (
     Pause,
     PauseException,
@@ -195,9 +194,6 @@ async def raised_command(cmd: ChatCommand):
         "so_far_min": so_far_total_min % 60,
         "min_paid_for": Donos().calc_chat_minutes(),
         "min_total": Donos().calc_total_minutes(),
-        "min_end_at": calc_end().total_seconds() / 60,
-        "end_ts": End().end_ts,
-        "end_min": End().end_min,
         "total_value": Donos().calc_dollars(),
         "points": Donos().calc_points(),
         "countdown": calc_timer(),
@@ -214,19 +210,13 @@ async def raised_command(cmd: ChatCommand):
 
 def calc_end() -> timedelta:
     """Find the timedelta to use for final calculations"""
-    if End().end_min:
-        return timedelta(minutes=End().end_min)
     minutes = Donos().calc_total_minutes()
-    if SETTINGS.end.max_minutes:
-        minutes = min(minutes, SETTINGS.end.max_minutes)
     return timedelta(minutes=minutes)
 
 
 def calc_time_so_far() -> timedelta:
     """How much time has been counted down since the start"""
-    if End().is_ended():
-        cur_time = End().end_ts
-    elif Pause().is_paused():
+    if Pause().is_paused():
         cur_time: datetime = Pause().start
     else:
         cur_time = datetime.now(tz=timezone.utc)
@@ -237,15 +227,11 @@ def calc_time_so_far() -> timedelta:
 
 def calc_timer(handle_end: bool = True) -> str:
     """Generate the timer string from the difference between paid and run minutes"""
-    if handle_end:
-        End().handle_end(calc_time_so_far, calc_end, Donos().calc_total_minutes)
     remaining = calc_end() - calc_time_so_far()
     hours = int(remaining.total_seconds() / 60 / 60)
     minutes = int(remaining.total_seconds() / 60) % 60
     seconds = int(remaining.total_seconds()) % 60
     time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-    if SETTINGS.end.max_minutes and Donos().calc_total_minutes() >= SETTINGS.end.max_minutes:
-        time_str = SETTINGS.fmt.countdown_max.format(clock=time_str)
     if Pause().is_paused():
         time_str = SETTINGS.fmt.countdown_pause.format(clock=time_str)
     return time_str
@@ -402,7 +388,7 @@ class JSONResponse(JSONResponse):
 @app.get("/live_stats", response_class=JSONResponse)
 async def get_live_stats():
     """Get a current snapshot of pause state, donation breakdown, and end state"""
-    full_stats = {"pause": Pause().to_dict(), "donos": Donos().to_dict(), "end": End().to_dict()}
+    full_stats = {"pause": Pause().to_dict(), "donos": Donos().to_dict()}
     return jsonable_encoder(full_stats)
 
 
@@ -477,9 +463,6 @@ async def traised_fields():
         "so_far_min": so_far_total_min % 60,
         "min_paid_for": Donos().calc_chat_minutes(),
         "min_total": Donos().calc_total_minutes(),
-        "min_end_at": calc_end().total_seconds() / 60,
-        "end_ts": End().end_ts,
-        "end_min": End().end_min,
         "total_value": Donos().calc_dollars(),
         "points": Donos().calc_points(),
         "countdown": calc_timer(),
@@ -704,23 +687,6 @@ async def websocket_counter_endpoint(websocket: WebSocket, item: COUNTER_TYPES):
         pass
 
 
-@app.put("/admin/end/clear", response_class=JSONResponse)
-async def put_end_clear(password: str):
-    """Clear the end latch at 00:00:00 and continue as if it hadn't ended
-
-    NOTE: If there haven't been donations then this will just re-latch the end after being cleared.
-    This is mainly for use if a big donation comes in right after the timer reaches the end and the
-    steamer wants to count that donation and keep going. Otherwise the donation counts in totals but
-    not the timer."""
-    SETTINGS.raise_on_bad_password(password)
-    old_values = End().to_dict()
-    try:
-        End().clear("/admin/end/clear")
-        return {"old": old_values, "new": End().to_dict()}
-    except EndException as e:
-        raise HTTPException(status_code=409, detail=str(e))
-
-
 @app.put("/admin/pause/begin", response_class=JSONResponse)
 async def put_pause_begin(password: str, time: Optional[datetime] = None):
     """Start a pause at the given timestamp, if not specified it will start a pause when called."""
@@ -866,8 +832,6 @@ if __name__ == "__main__":
     Pause.load_pause()
     Spins.load_spins()
     Donos.load_csv()
-    End.load_end()
-    End().handle_end(calc_time_so_far, calc_end, Donos().calc_total_minutes)
     log.info(f"Users who can run cmds in addition to mods {SETTINGS.twitch.admin_users}")
 
     import uvicorn
