@@ -22,12 +22,13 @@ BITS, TIPS, SUBS_T1, SUBS_T2, SUBS_T3, FOLLOWS = CSV_TYPES
 class Donos(metaclass=Singleton):
     dono_path = Path(SETTINGS.db.events)
 
-    def __init__(self, new_dict: Optional[dict[str, Any]] = None):
+    def __init__(self, new_dict: Optional[dict[str, Any]] = None, ff: Optional[set[str]] = None):
         if new_dict is None:
             self.donos = {BITS: 0, SUBS: {T1: 0, T2: 0, T3: 0}, TIPS: 0, FOLLOWS: 0}
         else:
             assert BITS in new_dict and TIPS in new_dict and SUBS in new_dict and FOLLOWS in new_dict
             self.donos = new_dict
+        self.follow_filter: set[str] = ff if ff else set()
 
     @staticmethod
     def sub_from_twitch_plan(plan: str) -> str:
@@ -68,6 +69,15 @@ class Donos(metaclass=Singleton):
         return donos
 
     @classmethod
+    def build_follow_filter(cls) -> set[str]:
+        follow_filter = set()
+        for row in cls.csv_iter():
+            if row["type"] == FOLLOWS:
+                follow_filter.add(row["user"].lower())
+        log.info(f"{follow_filter=}")
+        return follow_filter
+
+    @classmethod
     def load_csv(cls):
         if not cls.dono_path.is_file():
             log.warning(f"No CSV file found at {cls.dono_path}, creating one")
@@ -75,8 +85,9 @@ class Donos(metaclass=Singleton):
             cls.dono_path.write_text(",".join(CSV_COLUMNS) + "\n")
             return cls()
         donos = cls.read_csv()
+        follow_filter = cls.build_follow_filter() if donos[FOLLOWS] else None
         log.info(f"Loaded dono events CSV file and got: {donos}")
-        return cls(donos)
+        return cls(donos, follow_filter)
 
     def to_dict(self):
         to_return = dict(self.donos)
@@ -90,11 +101,13 @@ class Donos(metaclass=Singleton):
         self.dono_path.rename(new_filename)
         self.dono_path.write_text(",".join(CSV_COLUMNS) + "\n")
         self.reload_csv()
+        self.follow_filter = set()
         return new_filename
 
     def reload_csv(self):
         old_dict = self.to_dict()
         self.donos = self.read_csv()
+        self.follow_filter = self.build_follow_filter() if self.donos[FOLLOWS] else set()
         log.info(f"Reloaded CSV file, went from {old_dict} to {self.donos}")
 
     def add_event(self, ts: int, user: str, type: str, amount: Union[int, float], target: Optional[str] = None):
@@ -118,6 +131,10 @@ class Donos(metaclass=Singleton):
         elif type == SUBS_T3:
             self.donos[SUBS][T3] += amount
         elif type == FOLLOWS:
+            if user.lower() in self.follow_filter:
+                log.warning(f"Duplicate follow identified for {user}, ignoring")
+                return
+            self.follow_filter.add(user.lower())
             self.donos[FOLLOWS] += amount
         else:
             raise ValueError(f"Add event w/ type {type} is not recognized")
