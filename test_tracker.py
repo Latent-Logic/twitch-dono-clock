@@ -311,6 +311,8 @@ async def lifespan(app: FastAPI):
         new_text = toml.dumps({"name": bot_user.login, "token": token, "refresh_token": refresh_token})
         usr_token_file.write_text(new_text)
         log.info(f"Added bot name {bot_user.login} to {usr_token_file}")
+    else:
+        log.info(f"Bot name from {usr_token_file} is {db['name']}")
 
     # Get id for twitch channel
     channel = await first(twitch.get_users(logins=[SETTINGS.twitch.channel]))
