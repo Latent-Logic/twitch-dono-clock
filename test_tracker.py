@@ -22,16 +22,14 @@ from twitchAPI.twitch import Twitch
 from twitchAPI.type import AuthScope, ChatEvent, TwitchAPIException
 from websockets import ConnectionClosedOK
 
-from twitch_dono_clock.config import SETTINGS, load_overrides, override_value
-from twitch_dono_clock.donos import (
-    BITS,
-    CSV_COLUMNS,
+from twitch_dono_clock.config import (
     CSV_TYPES,
-    FOLLOWS,
-    TIPS,
-    Donos,
-    add_tip_command,
+    SETTINGS,
+    SUBS,
+    load_overrides,
+    override_value,
 )
+from twitch_dono_clock.donos import CSV_COLUMNS, Donos, add_tip_command
 from twitch_dono_clock.end import End, EndException
 from twitch_dono_clock.pause import (
     Pause,
@@ -42,6 +40,8 @@ from twitch_dono_clock.pause import (
     resume_command,
 )
 from twitch_dono_clock.spins import Spins, spin_done_command
+
+BITS, TIPS, SUBS_T1, SUBS_T2, SUBS_T3, FOLLOWS = CSV_TYPES
 
 # "chat:read chat:edit"
 USER_SCOPE = [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT]
@@ -201,13 +201,8 @@ async def raised_command(cmd: ChatCommand):
         "total_value": Donos().calc_dollars(),
         "points": Donos().calc_points(),
         "countdown": calc_timer(),
-        "bits": Donos().bits,
-        "tips": Donos().tips,
+        **{s: getattr(Donos(), s) for s in CSV_TYPES},
         "subs": Donos().subs,
-        "subs_t1": Donos().subs_t1,
-        "subs_t2": Donos().subs_t2,
-        "subs_t3": Donos().subs_t3,
-        "follows": Donos().follows,
         "pause_min": Pause().minutes,
         "pause_start": Pause().start or "Not Currently Paused",
     }
@@ -481,13 +476,8 @@ async def traised_fields():
         "total_value": Donos().calc_dollars(),
         "points": Donos().calc_points(),
         "countdown": calc_timer(),
-        "bits": Donos().bits,
-        "tips": Donos().tips,
+        **{s: getattr(Donos(), s) for s in CSV_TYPES},
         "subs": Donos().subs,
-        "subs_t1": Donos().subs_t1,
-        "subs_t2": Donos().subs_t2,
-        "subs_t3": Donos().subs_t3,
-        "follows": Donos().follows,
         "pause_min": Pause().minutes,
         "pause_start": Pause().start or "Not Currently Paused",
     }
@@ -551,7 +541,7 @@ async def get_events_csv():
 @app.get("/events_targets", response_class=JSONResponse)
 async def get_events_targets():
     """Sum of tips and bits by target string, useful for grouping sources when tagged"""
-    donation_targets = {"tips": {}, "bits": {}}
+    donation_targets = {TIPS: {}, BITS: {}}
     for row in Donos.csv_iter():
         if row["type"] not in donation_targets:
             continue
@@ -638,7 +628,7 @@ async def get_live_timer():
     return websocket_html.format(name="countdown", css=SETTINGS.output.css, hostname=SETTINGS.output.public, path="ws")
 
 
-COUNTER_TYPES = Literal["tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3", "total", "follows", "points"]
+COUNTER_TYPES = Literal["tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3", "follows", "total", "points"]
 
 
 @app.get("/live_counter", response_class=HTMLResponse)
@@ -649,7 +639,7 @@ async def get_live_counter(item: Optional[COUNTER_TYPES] = None):
             "<html><body>"
             ", ".join(
                 f"<a href='?item={s}'>{s}</a>"
-                for s in (TIPS, BITS, "subs", "subs_t1", "subs_t2", "subs_t3", FOLLOWS, "total", "points")
+                for s in (TIPS, BITS, SUBS, SUBS_T1, SUBS_T2, SUBS_T3, FOLLOWS, "total", "points")
             )
             + "</body></html>"
         )
@@ -683,7 +673,7 @@ async def websocket_endpoint(websocket: WebSocket):
 async def websocket_counter_endpoint(websocket: WebSocket, item: COUNTER_TYPES):
     """Websocket that pushes current total for given item, then sends update any time that number updates"""
     last_sent = None
-    money = {"tips", "total"}
+    money = {TIPS, "total"}
     await websocket.accept()
     try:
         while True:

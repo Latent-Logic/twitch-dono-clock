@@ -10,6 +10,10 @@ from pydantic import BaseModel, Field, SecretStr, model_validator
 
 log = logging.getLogger(__name__)
 
+SUBS, T1, T2, T3 = "subs", "t1", "t2", "t3"
+CSV_TYPES = ["bits", "tips", f"{SUBS}_{T1}", f"{SUBS}_{T2}", f"{SUBS}_{T3}", "follows"]
+BITS, TIPS, SUBS_T1, SUBS_T2, SUBS_T3, FOLLOWS = CSV_TYPES
+
 
 class SetTwitch(BaseModel):
     app_id: str
@@ -173,11 +177,11 @@ class Settings(BaseModel):
         if self.end.max_minutes:
             assert self.end.max_minutes > self.start.minutes, "end.max_minutes must be larger than start.minutes"
         for user, obj in self.bits.msg.items():
-            self._compiled_re.append((user, obj.re, "bits", obj.target))
+            self._compiled_re.append((user, obj.re, BITS, obj.target))
         for user, obj in self.tips.msg.items():
-            self._compiled_re.append((user, obj.re, "tips", obj.target))
-        for user, obj in self.tips.msg.items():
-            self._compiled_re.append((user, obj.re, "follows", obj.target))
+            self._compiled_re.append((user, obj.re, TIPS, obj.target))
+        for user, obj in self.follows.msg.items():
+            self._compiled_re.append((user, obj.re, FOLLOWS, obj.target))
         return self
 
     @property
@@ -185,31 +189,31 @@ class Settings(BaseModel):
         return self._compiled_re
 
     def get_value(self, type_name: str) -> Union[float, int]:
-        if type_name == "bits":
+        if type_name == BITS:
             return self.bits.money
-        if type_name == "tips":
+        if type_name == TIPS:
             return self.tips.money
-        if type_name == "subs_t1":
+        if type_name == SUBS_T1:
             return self.subs.tier.t1.money
-        if type_name == "subs_t2":
+        if type_name == SUBS_T2:
             return self.subs.tier.t2.money
-        if type_name == "subs_t3":
+        if type_name == SUBS_T3:
             return self.subs.tier.t3.money
-        if type_name == "follows":
+        if type_name == FOLLOWS:
             return self.follows.money
 
     def get_points(self, type_name: str) -> Union[float, int]:
-        if type_name == "bits":
+        if type_name == BITS:
             return self.bits.points
-        if type_name == "tips":
+        if type_name == TIPS:
             return self.tips.points
-        if type_name == "subs_t1":
+        if type_name == SUBS_T1:
             return self.subs.tier.t1.points
-        if type_name == "subs_t2":
+        if type_name == SUBS_T2:
             return self.subs.tier.t2.points
-        if type_name == "subs_t3":
+        if type_name == SUBS_T3:
             return self.subs.tier.t3.points
-        if type_name == "follows":
+        if type_name == FOLLOWS:
             return self.follows.points
 
     def raise_on_bad_password(self, to_check: str):

@@ -7,15 +7,13 @@ from typing import Any, Optional, Union
 
 from twitchAPI.chat import ChatCommand
 
-from twitch_dono_clock.config import SETTINGS
+from twitch_dono_clock.config import CSV_TYPES, SETTINGS, SUBS, T1, T2, T3
 from twitch_dono_clock.end import End
 from twitch_dono_clock.utils import Singleton
 
 log = logging.getLogger(__name__)
 
-SUBS, T1, T2, T3 = "subs", "t1", "t2", "t3"
 CSV_COLUMNS = ["time", "user", "target", "type", "amount"]
-CSV_TYPES = ["bits", "tips", f"{SUBS}_{T1}", f"{SUBS}_{T2}", f"{SUBS}_{T3}", "follows"]
 BITS, TIPS, SUBS_T1, SUBS_T2, SUBS_T3, FOLLOWS = CSV_TYPES
 
 
