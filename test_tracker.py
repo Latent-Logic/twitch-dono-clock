@@ -277,7 +277,10 @@ async def channel_online(_event):
 
 async def store_user_token(user_auth_token, user_auth_refresh_token):
     usr_token_file = Path(SETTINGS.twitch.user_token_file)
-    usr_token_file.write_text(toml.dumps({"token": user_auth_token, "refresh_token": user_auth_refresh_token}))
+    db = toml.loads(usr_token_file.read_text())
+    bot_name = db.get("name")
+    new_text = toml.dumps({"name": bot_name, "token": user_auth_token, "refresh_token": user_auth_refresh_token})
+    usr_token_file.write_text(new_text)
     log.info(f"Wrote updated {usr_token_file}")
 
 
@@ -301,6 +304,13 @@ async def lifespan(app: FastAPI):
     except TwitchAPIException:
         log.error(f"Invalid token, please remove {usr_token_file} try again")
         raise
+
+    db = toml.loads(usr_token_file.read_text())
+    if "name" not in db:
+        bot_user = await first(twitch.get_users())
+        new_text = toml.dumps({"name": bot_user.login, "token": token, "refresh_token": refresh_token})
+        usr_token_file.write_text(new_text)
+        log.info(f"Added bot name {bot_user.login} to {usr_token_file}")
 
     # Get id for twitch channel
     channel = await first(twitch.get_users(logins=[SETTINGS.twitch.channel]))
