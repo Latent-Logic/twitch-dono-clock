@@ -277,8 +277,11 @@ async def channel_online(_event):
 
 async def store_user_token(user_auth_token, user_auth_refresh_token):
     usr_token_file = Path(SETTINGS.twitch.user_token_file)
-    db = toml.loads(usr_token_file.read_text())
-    bot_name = db.get("name")
+    if usr_token_file.is_file():
+        db = toml.loads(usr_token_file.read_text())
+        bot_name = db.get("name")
+    else:
+        bot_name = None
     new_text = toml.dumps({"name": bot_name, "token": user_auth_token, "refresh_token": user_auth_refresh_token})
     usr_token_file.write_text(new_text)
     log.info(f"Wrote updated {usr_token_file}")
