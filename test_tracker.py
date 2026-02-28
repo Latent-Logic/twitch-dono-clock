@@ -17,6 +17,7 @@ from twitchAPI.chat import Chat, ChatCommand, ChatMessage, ChatSub, EventData
 from twitchAPI.eventsub.websocket import EventSubWebsocket
 from twitchAPI.helper import first
 from twitchAPI.oauth import UserAuthenticator
+from twitchAPI.object.eventsub import ChannelFollowEvent
 from twitchAPI.twitch import Twitch
 from twitchAPI.type import AuthScope, ChatEvent, TwitchAPIException
 from websockets import ConnectionClosedOK
@@ -26,6 +27,7 @@ from twitch_dono_clock.donos import (
     BITS,
     CSV_COLUMNS,
     CSV_TYPES,
+    FOLLOWS,
     TIPS,
     Donos,
     add_tip_command,
@@ -43,6 +45,9 @@ from twitch_dono_clock.spins import Spins, spin_done_command
 
 # "chat:read chat:edit"
 USER_SCOPE = [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT]
+
+if SETTINGS.twitch.follows:
+    USER_SCOPE.append(AuthScope.MODERATOR_READ_FOLLOWERS)
 
 log = logging.getLogger("test_tracker")
 
@@ -122,6 +127,8 @@ async def on_message(msg: ChatMessage):
                     amount = int(match["amount"].replace(",", ""))
                 elif dono_type == TIPS:
                     amount = float(match["amount"].replace(",", ""))
+                elif dono_type == FOLLOWS:
+                    amount = 1  # Only ever 1 follow per message
                 else:
                     raise ValueError(f"Unknown target from msg parsing {dono_type}")
                 if not amount:  # If we have a record with 0 bits / 0 tip we shouldn't record
@@ -200,6 +207,7 @@ async def raised_command(cmd: ChatCommand):
         "subs_t1": Donos().subs_t1,
         "subs_t2": Donos().subs_t2,
         "subs_t3": Donos().subs_t3,
+        "follows": Donos().follows,
         "pause_min": Pause().minutes,
         "pause_start": Pause().start or "Not Currently Paused",
     }
@@ -275,6 +283,19 @@ async def channel_online(_event):
         log.info(f"Channel went online at {now.isoformat()}, but time was not paused?!?")
 
 
+async def channel_follow(event: ChannelFollowEvent):
+    log_msg = f"New follow in {event.event.broadcaster_user_name} from: {event.event.user_name}"
+    log.info(log_msg)
+    log.debug(f"{event=}")
+    Donos().add_event(
+        ts=int(event.event.followed_at.timestamp() * 1000),
+        user=event.event.user_name,
+        target=None,
+        type=FOLLOWS,
+        amount=1,
+    )
+
+
 async def store_user_token(user_auth_token, user_auth_refresh_token):
     usr_token_file = Path(SETTINGS.twitch.user_token_file)
     if usr_token_file.is_file():
@@ -327,6 +348,11 @@ async def lifespan(app: FastAPI):
         eventsub.start()
         await eventsub.listen_stream_offline(channel.id, channel_offline)
         await eventsub.listen_stream_online(channel.id, channel_online)
+        if SETTINGS.twitch.follows:
+            bot_user = await first(twitch.get_users())
+            await eventsub.listen_channel_follow_v2(
+                broadcaster_user_id=channel.id, moderator_user_id=bot_user.id, callback=channel_follow
+            )
 
     # create chat instance
     chat = await Chat(
@@ -402,6 +428,12 @@ async def get_live_stats_subs():
     return str(Donos().subs)
 
 
+@app.get("/live_stats/follows", response_class=PlainTextResponse)
+async def get_live_stats_follows():
+    """Get a current total of follows"""
+    return str(Donos().follows)
+
+
 @app.get("/live_stats/points", response_class=PlainTextResponse)
 async def get_live_stats_points():
     """Get a current total of donation points reached"""
@@ -455,6 +487,7 @@ async def traised_fields():
         "subs_t1": Donos().subs_t1,
         "subs_t2": Donos().subs_t2,
         "subs_t3": Donos().subs_t3,
+        "follows": Donos().follows,
         "pause_min": Pause().minutes,
         "pause_start": Pause().start or "Not Currently Paused",
     }
@@ -605,17 +638,18 @@ async def get_live_timer():
     return websocket_html.format(name="countdown", css=SETTINGS.output.css, hostname=SETTINGS.output.public, path="ws")
 
 
+COUNTER_TYPES = Literal["tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3", "total", "follows", "points"]
+
+
 @app.get("/live_counter", response_class=HTMLResponse)
-async def get_live_counter(
-    item: Optional[Literal["tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3", "total", "points"]] = None
-):
+async def get_live_counter(item: Optional[COUNTER_TYPES] = None):
     """Live updating sum of donation totals. Without item it provides links to available options"""
     if item is None:
         return (
             "<html><body>"
             ", ".join(
                 f"<a href='?item={s}'>{s}</a>"
-                for s in ("tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3", "total", "points")
+                for s in (TIPS, BITS, "subs", "subs_t1", "subs_t2", "subs_t3", FOLLOWS, "total", "points")
             )
             + "</body></html>"
         )
@@ -646,9 +680,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 
 @app.websocket("/ws_counter")
-async def websocket_counter_endpoint(
-    websocket: WebSocket, item: Literal["tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3", "total", "points"]
-):
+async def websocket_counter_endpoint(websocket: WebSocket, item: COUNTER_TYPES):
     """Websocket that pushes current total for given item, then sends update any time that number updates"""
     last_sent = None
     money = {"tips", "total"}

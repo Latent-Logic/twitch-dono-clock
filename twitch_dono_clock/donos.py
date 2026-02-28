@@ -15,8 +15,8 @@ log = logging.getLogger(__name__)
 
 SUBS, T1, T2, T3 = "subs", "t1", "t2", "t3"
 CSV_COLUMNS = ["time", "user", "target", "type", "amount"]
-CSV_TYPES = ["bits", "tips", f"{SUBS}_{T1}", f"{SUBS}_{T2}", f"{SUBS}_{T3}"]
-BITS, TIPS, SUBS_T1, SUBS_T2, SUBS_T3 = CSV_TYPES
+CSV_TYPES = ["bits", "tips", f"{SUBS}_{T1}", f"{SUBS}_{T2}", f"{SUBS}_{T3}", "follows"]
+BITS, TIPS, SUBS_T1, SUBS_T2, SUBS_T3, FOLLOWS = CSV_TYPES
 
 
 class Donos(metaclass=Singleton):
@@ -24,9 +24,9 @@ class Donos(metaclass=Singleton):
 
     def __init__(self, new_dict: Optional[dict[str, Any]] = None):
         if new_dict is None:
-            self.donos = {BITS: 0, SUBS: {T1: 0, T2: 0, T3: 0}, TIPS: 0}
+            self.donos = {BITS: 0, SUBS: {T1: 0, T2: 0, T3: 0}, TIPS: 0, FOLLOWS: 0}
         else:
-            assert BITS in new_dict and TIPS in new_dict and SUBS in new_dict
+            assert BITS in new_dict and TIPS in new_dict and SUBS in new_dict and FOLLOWS in new_dict
             self.donos = new_dict
 
     @staticmethod
@@ -43,7 +43,7 @@ class Donos(metaclass=Singleton):
 
     @classmethod
     def read_csv(cls) -> dict[str, Any]:
-        donos = {BITS: 0, SUBS: {T1: 0, T2: 0, T3: 0}, TIPS: 0}
+        donos = {BITS: 0, SUBS: {T1: 0, T2: 0, T3: 0}, TIPS: 0, FOLLOWS: 0}
         for row in cls.csv_iter():
             if row["type"] == BITS:
                 donos[BITS] += int(row["amount"])
@@ -63,6 +63,8 @@ class Donos(metaclass=Singleton):
                     donos[SUBS][T2] += int(row["amount"])
                 elif row["type"].endswith("_t3"):
                     donos[SUBS][T3] += int(row["amount"])
+            elif row["type"] == FOLLOWS:
+                donos[FOLLOWS] += int(row["amount"])
         return donos
 
     @classmethod
@@ -115,6 +117,8 @@ class Donos(metaclass=Singleton):
             self.donos[SUBS][T2] += amount
         elif type == SUBS_T3:
             self.donos[SUBS][T3] += amount
+        elif type == FOLLOWS:
+            self.donos[FOLLOWS] += amount
         else:
             raise ValueError(f"Add event w/ type {type} is not recognized")
         with self.dono_path.open("a", encoding="utf-8") as f:
@@ -131,6 +135,7 @@ class Donos(metaclass=Singleton):
                 self.subs_t1 * SETTINGS.subs.tier.t1.min,
                 self.subs_t2 * SETTINGS.subs.tier.t2.min,
                 self.subs_t3 * SETTINGS.subs.tier.t3.min,
+                self.follows * SETTINGS.follows.min,
             )
         )
 
@@ -153,6 +158,7 @@ class Donos(metaclass=Singleton):
                 self.subs_t1 * SETTINGS.subs.tier.t1.money,
                 self.subs_t2 * SETTINGS.subs.tier.t2.money,
                 self.subs_t3 * SETTINGS.subs.tier.t3.money,
+                self.follows * SETTINGS.follows.money,
             )
         )
 
@@ -165,6 +171,7 @@ class Donos(metaclass=Singleton):
                 self.subs_t1 * SETTINGS.subs.tier.t1.points,
                 self.subs_t2 * SETTINGS.subs.tier.t2.points,
                 self.subs_t3 * SETTINGS.subs.tier.t3.points,
+                self.follows * SETTINGS.follows.points,
             )
         )
 
@@ -191,6 +198,10 @@ class Donos(metaclass=Singleton):
     @property
     def subs_t3(self) -> int:
         return self.donos[SUBS][T3]
+
+    @property
+    def follows(self):
+        return self.donos[FOLLOWS]
 
     @property
     def total(self) -> float:

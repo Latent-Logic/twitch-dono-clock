@@ -22,6 +22,7 @@ class SetTwitch(BaseModel):
     eventsub: bool
     pause_on_offline: bool
     unpause_on_online: bool
+    follows: bool = False
 
     @model_validator(mode="after")
     def streamer_in_admin(self):
@@ -129,6 +130,13 @@ class SetSubs(BaseModel):
     tier: SetSubsTiers
 
 
+class SetFollows(BaseModel):
+    min: float = 1.0
+    money: float = 0.0
+    points: float = 1.0
+    msg: Dict[str, SetRegex] = Field(default_factory=dict)
+
+
 class SetFmt(BaseModel):
     countdown_pause: str = "{clock} PAUSED"
     countdown_max: str = "🔒{clock}"
@@ -155,6 +163,7 @@ class Settings(BaseModel):
     tips: SetTips
     bits: SetBits
     subs: SetSubs
+    follows: SetFollows = Field(default_factory=SetFollows)
     fmt: SetFmt
 
     _compiled_re: List[Tuple[str, re.Pattern, str, Optional[str]]] = []
@@ -167,6 +176,8 @@ class Settings(BaseModel):
             self._compiled_re.append((user, obj.re, "bits", obj.target))
         for user, obj in self.tips.msg.items():
             self._compiled_re.append((user, obj.re, "tips", obj.target))
+        for user, obj in self.tips.msg.items():
+            self._compiled_re.append((user, obj.re, "follows", obj.target))
         return self
 
     @property
@@ -184,6 +195,8 @@ class Settings(BaseModel):
             return self.subs.tier.t2.money
         if type_name == "subs_t3":
             return self.subs.tier.t3.money
+        if type_name == "follows":
+            return self.follows.money
 
     def get_points(self, type_name: str) -> Union[float, int]:
         if type_name == "bits":
@@ -196,6 +209,8 @@ class Settings(BaseModel):
             return self.subs.tier.t2.points
         if type_name == "subs_t3":
             return self.subs.tier.t3.points
+        if type_name == "follows":
+            return self.follows.points
 
     def raise_on_bad_password(self, to_check: str):
         if to_check != self.output.admin_pass.get_secret_value().format(channel=self.twitch.channel):
