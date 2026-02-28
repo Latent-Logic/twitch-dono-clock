@@ -73,7 +73,7 @@ class SetSpins(BaseModel):
 
     @model_validator(mode="after")
     def div_valid(self):
-        assert self.value_div > 0, f"{self.div_valid=} must be greater than 0"
+        assert self.value_div > 0, f"{self.value_div=} must be greater than 0"
         return self
 
 

@@ -13,7 +13,6 @@ log = logging.getLogger(__name__)
 class Spins(metaclass=Singleton):
     spin_file = Path(SETTINGS.db.spins)
     enabled = SETTINGS.spins.enabled
-    div_val = SETTINGS.spins.value_div
 
     def __init__(self, starting_spins: int = 0):
         self._performed = starting_spins
@@ -52,7 +51,7 @@ class Spins(metaclass=Singleton):
         self.save()
 
     def calc_todo(self, value: float) -> float:
-        return value / self.div_val
+        return value / SETTINGS.spins.value_div
 
 
 async def spin_done_command(cmd: ChatCommand):
