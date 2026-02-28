@@ -45,6 +45,7 @@ class SetTwitch(BaseModel):
 class SetStart(BaseModel):
     minutes: int
     time: datetime
+    min2meter: float = 0.0166666666666666667
 
 
 class SetEnd(BaseModel):

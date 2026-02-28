@@ -186,17 +186,12 @@ async def raised_command(cmd: ChatCommand):
     if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
         log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
         return
-    so_far_total_min = calc_time_so_far().total_seconds() / 60
     fmt_dict = {
         **fmt_dict,
-        "so_far_total_min": so_far_total_min,
-        "so_far_hrs": so_far_total_min // 60,
-        "so_far_min": so_far_total_min % 60,
         "min_paid_for": Donos().calc_chat_minutes(),
-        "min_total": Donos().calc_total_minutes(),
         "total_value": Donos().calc_dollars(),
         "points": Donos().calc_points(),
-        "countdown": calc_timer(),
+        "height": calc_height(),
         **{s: getattr(Donos(), s) for s in CSV_TYPES},
         SUBS: Donos().subs,
         "sub_pts": Donos().sub_pts,
@@ -206,12 +201,6 @@ async def raised_command(cmd: ChatCommand):
     response = SETTINGS.fmt.traised_success.format(**fmt_dict)
     log.info(response)
     await cmd.reply(response)
-
-
-def calc_end() -> timedelta:
-    """Find the timedelta to use for final calculations"""
-    minutes = Donos().calc_total_minutes()
-    return timedelta(minutes=minutes)
 
 
 def calc_time_so_far() -> timedelta:
@@ -225,13 +214,13 @@ def calc_time_so_far() -> timedelta:
     return corrected_tsf
 
 
-def calc_timer(handle_end: bool = True) -> str:
+def calc_height(handle_end: bool = True) -> str:
     """Generate the timer string from the difference between paid and run minutes"""
-    remaining = calc_end() - calc_time_so_far()
-    hours = int(remaining.total_seconds() / 60 / 60)
-    minutes = int(remaining.total_seconds() / 60) % 60
-    seconds = int(remaining.total_seconds()) % 60
-    time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    chat_meters = Donos().calc_chat_minutes()
+    real_time_minutes = calc_time_so_far().total_seconds() / 60
+    real_time_meters = SETTINGS.start.minutes + real_time_minutes * SETTINGS.start.min2meter
+    meters = chat_meters + real_time_meters
+    time_str = f"{meters:.2f}"
     if Pause().is_paused():
         time_str = SETTINGS.fmt.countdown_pause.format(clock=time_str)
     return time_str
@@ -445,7 +434,7 @@ if Spins.enabled:
 @app.get("/calc_timer", response_class=PlainTextResponse)
 async def get_calc_timer():
     """Get a single snapshot of the timer at time of call"""
-    return calc_timer()
+    return calc_height()
 
 
 @app.get("/traised", response_class=JSONResponse)
@@ -456,16 +445,11 @@ async def traised_fields():
     "Raised ${total_value:.2f} and has run for {so_far_total_min:.2f}/{min_end_at:.2f} minutes"
     but can be customized in the settings.toml file.
     """
-    so_far_total_min = calc_time_so_far().total_seconds() / 60
     return {
-        "so_far_total_min": so_far_total_min,
-        "so_far_hrs": so_far_total_min // 60,
-        "so_far_min": so_far_total_min % 60,
         "min_paid_for": Donos().calc_chat_minutes(),
-        "min_total": Donos().calc_total_minutes(),
         "total_value": Donos().calc_dollars(),
         "points": Donos().calc_points(),
-        "countdown": calc_timer(),
+        "height": calc_height(),
         **{s: getattr(Donos(), s) for s in CSV_TYPES},
         SUBS: Donos().subs,
         "sub_pts": Donos().sub_pts,
@@ -652,7 +636,7 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             try:
-                await websocket.send_text(calc_timer())
+                await websocket.send_text(calc_height())
                 await asyncio.sleep(0.5)
             except ConnectionClosedOK:
                 break
