@@ -215,6 +215,10 @@ class Donos(metaclass=Singleton):
         return self.donos[SUBS][T3]
 
     @property
+    def sub_pts(self) -> int:
+        return self.subs_t1 + self.subs_t2 * 2 + self.subs_t3 * 6
+
+    @property
     def follows(self):
         return self.donos[FOLLOWS]
 

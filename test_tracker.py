@@ -202,7 +202,8 @@ async def raised_command(cmd: ChatCommand):
         "points": Donos().calc_points(),
         "countdown": calc_timer(),
         **{s: getattr(Donos(), s) for s in CSV_TYPES},
-        "subs": Donos().subs,
+        SUBS: Donos().subs,
+        "sub_pts": Donos().sub_pts,
         "pause_min": Pause().minutes,
         "pause_start": Pause().start or "Not Currently Paused",
     }
@@ -423,6 +424,12 @@ async def get_live_stats_subs():
     return str(Donos().subs)
 
 
+@app.get("/live_stats/sub_pts", response_class=PlainTextResponse)
+async def get_live_stats_sub_pts():
+    """Get a current total of Twitch Subscription Points, accounting for tiers of subs"""
+    return str(Donos().sub_pts)
+
+
 @app.get("/live_stats/follows", response_class=PlainTextResponse)
 async def get_live_stats_follows():
     """Get a current total of follows"""
@@ -477,7 +484,8 @@ async def traised_fields():
         "points": Donos().calc_points(),
         "countdown": calc_timer(),
         **{s: getattr(Donos(), s) for s in CSV_TYPES},
-        "subs": Donos().subs,
+        SUBS: Donos().subs,
+        "sub_pts": Donos().sub_pts,
         "pause_min": Pause().minutes,
         "pause_start": Pause().start or "Not Currently Paused",
     }
@@ -628,7 +636,9 @@ async def get_live_timer():
     return websocket_html.format(name="countdown", css=SETTINGS.output.css, hostname=SETTINGS.output.public, path="ws")
 
 
-COUNTER_TYPES = Literal["tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3", "follows", "total", "points"]
+COUNTER_TYPES = Literal[
+    "tips", "bits", "subs", "subs_t1", "subs_t2", "subs_t3", "sub_pts", "follows", "total", "points"
+]
 
 
 @app.get("/live_counter", response_class=HTMLResponse)
@@ -639,7 +649,7 @@ async def get_live_counter(item: Optional[COUNTER_TYPES] = None):
             "<html><body>"
             ", ".join(
                 f"<a href='?item={s}'>{s}</a>"
-                for s in (TIPS, BITS, SUBS, SUBS_T1, SUBS_T2, SUBS_T3, FOLLOWS, "total", "points")
+                for s in (TIPS, BITS, SUBS, SUBS_T1, SUBS_T2, SUBS_T3, "sub_pts", FOLLOWS, "total", "points")
             )
             + "</body></html>"
         )
