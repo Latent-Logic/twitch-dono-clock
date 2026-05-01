@@ -128,8 +128,9 @@ class SetSubsTiers(BaseModel):
 
 
 class SetSubs(BaseModel):
-    count_multimonth: bool
-    count_multimonth_gift: bool
+    count_multimonth: bool = False
+    count_multimonth_gift: bool = False
+    ignore_gifts: bool = False
     plan: Dict[str, str]
     tier: SetSubsTiers
 

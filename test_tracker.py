@@ -151,6 +151,7 @@ async def on_sub(sub: ChatSub):
         f'\tFrom: {sub._parsed["tags"]["display-name"]}'
         f'\tTo: {sub._parsed["tags"].get("msg-param-recipient-user-name", sub._parsed["tags"]["display-name"])}'
     )
+    months = 1
     if SETTINGS.subs.count_multimonth:
         months = int(sub._parsed["tags"].get("msg-param-multimonth-duration", 0))
         if not months and SETTINGS.subs.count_multimonth_gift:
@@ -158,8 +159,14 @@ async def on_sub(sub: ChatSub):
         if not months:
             months = 1
         log_msg += f"\t Months: {months}"
-    else:
-        months = 1
+    if SETTINGS.subs.ignore_gifts:
+        msg_id = sub._parsed["tags"].get("msg-id")
+        if msg_id == "subgift":
+            months = 0
+            log_msg += f"\tIgnoring {msg_id}"
+        elif sub._parsed["tags"].get("msg-param-was-gifted") == "true":
+            months = 0
+            log_msg += f"\tIgnoring {msg_id} was-gifted"
     log.info(log_msg)
     log.debug(f"{sub._parsed=}")
     Donos().add_event(

@@ -67,6 +67,7 @@ target = "SoundAlerts"
 [subs]
 count_multimonth = false
 count_multimonth_gift = false
+ignore_gifts = false
 [subs.plan]
 Prime = "t1"
 1000 = "t1"
