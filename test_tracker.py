@@ -824,7 +824,7 @@ async def put_settings_overrides(password: str):
 
 
 @app.put("/admin/settings/override_value", response_class=JSONResponse)
-async def put_settings_overrides(password: str, key: str, value: Any):
+async def put_settings_override_value(password: str, key: str, value: Any):
     """Allow overriding settings on the fly by specifying a key and new value
 
     Available settings can be seen at the example TOML file at:
@@ -856,7 +856,7 @@ if Spins.enabled:
             raise HTTPException(status_code=409, detail=str(e))
 
     @app.put("/admin/spins/set", response_class=JSONResponse)
-    async def put_settings_overrides(password: str, new_total: Annotated[int, Query(ge=0)]):
+    async def put_spins_set(password: str, new_total: Annotated[int, Query(ge=0)]):
         """Hard set the spin count to new_total"""
         SETTINGS.raise_on_bad_password(password)
         try:
