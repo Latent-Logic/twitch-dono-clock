@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from twitchAPI.chat import ChatCommand
 
@@ -28,7 +28,7 @@ class Pause(metaclass=Singleton):
     pause_file = Path(SETTINGS.db.pause)
     log_file = Path(SETTINGS.db.pause_log)
 
-    def __init__(self, minutes: float = 0.0, start: Optional[datetime] = None):
+    def __init__(self, minutes: float = 0.0, start: datetime | None = None):
         self._minutes = minutes
         self._start = start
 
@@ -70,21 +70,21 @@ class Pause(metaclass=Singleton):
     def minutes(self) -> float:
         return self._minutes
 
-    def pause_set(self, minutes: float, reason: Optional[str] = None):
+    def pause_set(self, minutes: float, reason: str | None = None):
         old_min = self._minutes
         self._minutes = minutes
         self.save()
         reason_msg = f" because {reason}" if reason else ""
         self.log_pause_change(f"Hard changed minutes from {old_min}{reason_msg}")
 
-    def pause_increase(self, minutes: float, reason: Optional[str] = None):
+    def pause_increase(self, minutes: float, reason: str | None = None):
         old_min = self._minutes
         self._minutes += minutes
         self.save()
         reason_msg = f" because {reason}" if reason else ""
         self.log_pause_change(f"Pause time increased by {minutes}min from {old_min}{reason_msg}")
 
-    def pause_reduce(self, minutes: float, reason: Optional[str] = None):
+    def pause_reduce(self, minutes: float, reason: str | None = None):
         old_min = self._minutes
         self._minutes -= minutes
         self.save()
@@ -92,13 +92,13 @@ class Pause(metaclass=Singleton):
         self.log_pause_change(f"Pause time reduced by {minutes}min from {old_min}{reason_msg}")
 
     @property
-    def start(self) -> Optional[datetime]:
+    def start(self) -> datetime | None:
         return self._start
 
     def is_paused(self):
         return self._start is not None
 
-    def start_pause(self, reason: Optional[str] = None) -> datetime:
+    def start_pause(self, reason: str | None = None) -> datetime:
         if self.is_paused():
             raise PauseInProgress(f"Can't start pause as it already started at {self.start}")
         pause_start = datetime.now(tz=timezone.utc)
@@ -107,7 +107,7 @@ class Pause(metaclass=Singleton):
         self.log_pause_change(f"Pause Started because {reason}" if reason else "Pause Started")
         return pause_start
 
-    def set_pause_start(self, time: datetime, reason: Optional[str] = None):
+    def set_pause_start(self, time: datetime, reason: str | None = None):
         existing_start = self._start
         self._start = time
         self.save()
@@ -119,7 +119,7 @@ class Pause(metaclass=Singleton):
         else:
             self.log_pause_change(f"Pause started backdated to {time.isoformat()}{reason_msg}")
 
-    def resume(self, reason: Optional[str] = None) -> float:
+    def resume(self, reason: str | None = None) -> float:
         if not self.is_paused():
             raise PauseNotPaused("Can't resume a paused timer if we're not paused")
         added_min = (datetime.now(tz=timezone.utc) - self._start).total_seconds() / 60
@@ -130,7 +130,7 @@ class Pause(metaclass=Singleton):
         self.log_pause_change(f"Pause Ended {reason_msg}& added {added_min:.2f}")
         return added_min
 
-    def resumed_at(self, time: datetime, reason: Optional[str] = None) -> float:
+    def resumed_at(self, time: datetime, reason: str | None = None) -> float:
         if not self.is_paused():
             raise PauseNotPaused("Can't resume a paused timer if we're not paused")
         if time <= self._start:
@@ -143,7 +143,7 @@ class Pause(metaclass=Singleton):
         self.log_pause_change(f"Pause Ended at {time.isoformat()} {reason_msg}& added {added_min:.2f}")
         return added_min
 
-    def abort_current(self, reason: Optional[str] = None) -> datetime:
+    def abort_current(self, reason: str | None = None) -> datetime:
         if not self.is_paused():
             raise PauseNotPaused("Can't remove a paused from the timer if we're not paused")
         old_start = self.start

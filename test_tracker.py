@@ -1,4 +1,5 @@
 """Twitch donothon clock based on reading chat"""
+
 import asyncio
 import html
 import json
@@ -6,7 +7,7 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Annotated, Any, Literal, Optional
+from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import toml
@@ -148,8 +149,8 @@ async def on_sub(sub: ChatSub):
     log_msg = (
         f"New subscription in {sub.room.name}:"
         f"\tType: {sub.sub_plan}"
-        f'\tFrom: {sub._parsed["tags"]["display-name"]}'
-        f'\tTo: {sub._parsed["tags"].get("msg-param-recipient-user-name", sub._parsed["tags"]["display-name"])}'
+        f"\tFrom: {sub._parsed['tags']['display-name']}"
+        f"\tTo: {sub._parsed['tags'].get('msg-param-recipient-user-name', sub._parsed['tags']['display-name'])}"
     )
     months = 1
     if SETTINGS.subs.count_multimonth:
@@ -499,7 +500,7 @@ async def traised_fields():
 
 
 @app.get("/events", response_class=HTMLResponse)
-async def get_events(timezone: Optional[str] = None):
+async def get_events(timezone: str | None = None):
     """Get a list of all donation events chunked by day in given timezone or UTC
 
     Valid Timezone strings can be found under `TZ Identifier` at the following page:
@@ -649,7 +650,7 @@ COUNTER_TYPES = Literal[
 
 
 @app.get("/live_counter", response_class=HTMLResponse)
-async def get_live_counter(item: Optional[COUNTER_TYPES] = None):
+async def get_live_counter(item: COUNTER_TYPES | None = None):
     """Live updating sum of donation totals. Without item it provides links to available options"""
     if item is None:
         return (
@@ -729,7 +730,7 @@ async def put_end_clear(password: str):
 
 
 @app.put("/admin/pause/begin", response_class=JSONResponse)
-async def put_pause_begin(password: str, time: Optional[datetime] = None):
+async def put_pause_begin(password: str, time: datetime | None = None):
     """Start a pause at the given timestamp, if not specified it will start a pause when called."""
     SETTINGS.raise_on_bad_password(password)
     old_values = Pause().to_dict()
@@ -745,7 +746,7 @@ async def put_pause_begin(password: str, time: Optional[datetime] = None):
 
 
 @app.put("/admin/pause/resume", response_class=JSONResponse)
-async def put_pause_resume(password: str, time: Optional[datetime] = None):
+async def put_pause_resume(password: str, time: datetime | None = None):
     """Resume from a pause at the given timestamp, if not specified it will resume at call time."""
     SETTINGS.raise_on_bad_password(password)
     old_values = Pause().to_dict()

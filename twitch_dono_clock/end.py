@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable
 
 import toml
 
@@ -22,9 +22,7 @@ class EndNotEnded(EndException):
 class End(metaclass=Singleton):
     end_file = Path(SETTINGS.db.end_mark)
 
-    def __init__(
-        self, end_min: Optional[float] = None, end_ts: Optional[datetime] = None, ended_at_max: Optional[bool] = None
-    ):
+    def __init__(self, end_min: float | None = None, end_ts: datetime | None = None, ended_at_max: bool | None = None):
         self.end_min = end_min
         self.end_ts = end_ts
         self.ended_at_max = ended_at_max
@@ -40,7 +38,7 @@ class End(metaclass=Singleton):
     def is_ended(self):
         return self.end_ts is not None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         if self.is_ended():
             return {
                 "end_min": self.end_min,
@@ -77,7 +75,7 @@ class End(metaclass=Singleton):
         log.info(f"Timer has ended! {self.end_ts.isoformat()} w/ {self.end_min:.2f}min")
         self.save()
 
-    def clear(self, reason: Optional[str] = None):
+    def clear(self, reason: str | None = None):
         if not self.is_ended():
             raise EndNotEnded("Can't clear an end if we've not ended!")
         old = self.to_dict()

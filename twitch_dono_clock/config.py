@@ -2,7 +2,7 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 import toml
 from fastapi import HTTPException
@@ -22,7 +22,7 @@ class SetTwitch(BaseModel):
     auth_url: str
     user_token_file: str
     enable_cmds: bool
-    admin_users: List[str]
+    admin_users: list[str]
     eventsub: bool
     pause_on_offline: bool
     unpause_on_online: bool
@@ -84,7 +84,7 @@ class SetSpins(BaseModel):
 
 class SetRegex(BaseModel):
     regex: str
-    target: Optional[str] = None
+    target: str | None = None
 
     @property
     def re(self) -> re.Pattern:
@@ -101,7 +101,7 @@ class SetTips(BaseModel):
     min: float
     money: float
     points: float = 1.0
-    msg: Dict[str, SetRegex] = Field(default_factory=dict)
+    msg: dict[str, SetRegex] = Field(default_factory=dict)
     convert: dict[str, Conversions] = Field(default_factory=dict)
 
 
@@ -112,7 +112,7 @@ class SetBits(BaseModel):
     animated_message_bits: int = 20
     giant_emote_bits: int = 30
     on_screen_bits: int = 40
-    msg: Dict[str, SetRegex] = Field(default_factory=dict)
+    msg: dict[str, SetRegex] = Field(default_factory=dict)
 
 
 class SetSubValue(BaseModel):
@@ -131,7 +131,7 @@ class SetSubs(BaseModel):
     count_multimonth: bool = False
     count_multimonth_gift: bool = False
     ignore_gifts: bool = False
-    plan: Dict[str, str]
+    plan: dict[str, str]
     tier: SetSubsTiers
 
 
@@ -139,7 +139,7 @@ class SetFollows(BaseModel):
     min: float = 1.0
     money: float = 0.0
     points: float = 1.0
-    msg: Dict[str, SetRegex] = Field(default_factory=dict)
+    msg: dict[str, SetRegex] = Field(default_factory=dict)
 
 
 class SetFmt(BaseModel):
@@ -171,7 +171,7 @@ class Settings(BaseModel):
     follows: SetFollows = Field(default_factory=SetFollows)
     fmt: SetFmt
 
-    _compiled_re: List[Tuple[str, re.Pattern, str, Optional[str]]] = []
+    _compiled_re: list[tuple[str, re.Pattern, str, str | None]] = []
 
     @model_validator(mode="after")
     def compile_regex(self):
@@ -186,10 +186,10 @@ class Settings(BaseModel):
         return self
 
     @property
-    def compiled_re(self) -> List[Tuple[str, re.Pattern, str, Optional[str]]]:
+    def compiled_re(self) -> list[tuple[str, re.Pattern, str, str | None]]:
         return self._compiled_re
 
-    def get_value(self, type_name: str) -> Union[float, int]:
+    def get_value(self, type_name: str) -> float | int:
         if type_name == BITS:
             return self.bits.money
         if type_name == TIPS:
@@ -203,7 +203,7 @@ class Settings(BaseModel):
         if type_name == FOLLOWS:
             return self.follows.money
 
-    def get_points(self, type_name: str) -> Union[float, int]:
+    def get_points(self, type_name: str) -> float | int:
         if type_name == BITS:
             return self.bits.points
         if type_name == TIPS:

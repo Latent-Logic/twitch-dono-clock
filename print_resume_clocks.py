@@ -1,8 +1,8 @@
 """Print the time on clock for every resumed timestamp"""
 import sys
+from collections.abc import Iterable
 from datetime import datetime, timezone, tzinfo
 from pathlib import Path
-from typing import Iterable, Tuple
 from zoneinfo import ZoneInfo
 
 from test_tracker import calc_time_so_far, calc_timer
@@ -14,7 +14,7 @@ from twitch_dono_clock.pause import Pause
 TIMEZONE = "America/Los_Angeles"
 
 
-def pause_generator(pause_file: Path) -> Iterable[Tuple[datetime, float]]:
+def pause_generator(pause_file: Path) -> Iterable[tuple[datetime, float]]:
     for line in pause_file.read_text().strip().split("\n"):
         if not line.strip():
             continue

@@ -3,7 +3,7 @@ import logging
 from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 from twitchAPI.chat import ChatCommand
 
@@ -20,7 +20,7 @@ BITS, TIPS, SUBS_T1, SUBS_T2, SUBS_T3, FOLLOWS = CSV_TYPES
 class Donos(metaclass=Singleton):
     dono_path = Path(SETTINGS.db.events)
 
-    def __init__(self, new_dict: Optional[dict[str, Any]] = None, ff: Optional[set[str]] = None):
+    def __init__(self, new_dict: dict[str, Any] | None = None, ff: set[str] | None = None):
         if new_dict is None:
             self.donos = {BITS: 0, SUBS: {T1: 0, T2: 0, T3: 0}, TIPS: 0, FOLLOWS: 0}
         else:
@@ -108,7 +108,7 @@ class Donos(metaclass=Singleton):
         self.follow_filter = self.build_follow_filter() if self.donos[FOLLOWS] else set()
         log.info(f"Reloaded CSV file, went from {old_dict} to {self.donos}")
 
-    def add_event(self, ts: int, user: str, type: str, amount: Union[int, float], target: Optional[str] = None):
+    def add_event(self, ts: int, user: str, type: str, amount: int | float, target: str | None = None):
         if not self.dono_path.is_file():
             raise FileNotFoundError(f"No CSV file found at {self.dono_path}, Should have been created earlier?!?")
         if type == BITS:
