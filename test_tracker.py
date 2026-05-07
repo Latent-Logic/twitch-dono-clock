@@ -168,6 +168,9 @@ async def on_sub(sub: ChatSub):
         elif sub._parsed["tags"].get("msg-param-was-gifted") == "true":
             months = 0
             log_msg += f"\tIgnoring {msg_id} was-gifted"
+    if SETTINGS.subs.ignore_prime and sub.sub_plan == "Prime":
+        months = 0
+        log_msg += "\tIgnoring Prime sub"
     log.info(log_msg)
     log.debug(f"{sub._parsed=}")
     Donos().add_event(

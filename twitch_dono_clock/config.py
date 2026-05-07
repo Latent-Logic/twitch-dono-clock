@@ -131,6 +131,7 @@ class SetSubs(BaseModel):
     count_multimonth: bool = False
     count_multimonth_gift: bool = False
     ignore_gifts: bool = False
+    ignore_prime: bool = False
     plan: dict[str, str]
     tier: SetSubsTiers
 
