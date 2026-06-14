@@ -225,8 +225,9 @@ async def raised_command(cmd: ChatCommand):
 
 def calc_end() -> timedelta:
     """Find the timedelta to use for final calculations"""
-    if End().end_min:
-        return timedelta(minutes=End().end_min)
+    end = End()
+    if end.end_min:
+        return timedelta(minutes=end.end_min)
     minutes = Donos().calc_total_minutes()
     if SETTINGS.end.max_minutes:
         minutes = min(minutes, SETTINGS.end.max_minutes)
@@ -235,14 +236,16 @@ def calc_end() -> timedelta:
 
 def calc_time_so_far() -> timedelta:
     """How much time has been counted down since the start"""
-    if End().is_ended():
-        cur_time = End().end_ts
-    elif Pause().is_paused():
-        cur_time: datetime = Pause().start
+    end = End()
+    pause = Pause()
+    if end.is_ended():
+        cur_time = end.end_ts
+    elif pause.is_paused():
+        cur_time = pause.start
     else:
         cur_time = datetime.now(tz=timezone.utc)
     time_so_far = cur_time - SETTINGS.start.time
-    corrected_tsf = time_so_far - timedelta(minutes=Pause().minutes)
+    corrected_tsf = time_so_far - timedelta(minutes=pause.minutes)
     return corrected_tsf
 
 
@@ -264,10 +267,12 @@ def calc_timer(handle_end: bool = True) -> str:
 
 async def channel_offline(_event):
     now = datetime.now(tz=timezone.utc)
-    if Pause().is_paused():
-        log.info(f"Channel went offline at {now.isoformat()}, already was paused at {Pause().start.isoformat()}")
+    pause = Pause()
+    if pause.is_paused():
+        assert pause.start is not None
+        log.info(f"Channel went offline at {now.isoformat()}, already was paused at {pause.start.isoformat()}")
     elif SETTINGS.twitch.pause_on_offline:
-        now = Pause().start_pause("channel went offline")
+        now = pause.start_pause("channel went offline")
         log.info(f"Channel went offline at {now.isoformat()}, pause started")
     else:
         log.info(f"Channel went offline at {now.isoformat()}, but pause not started, timer is still running")
@@ -275,19 +280,22 @@ async def channel_offline(_event):
 
 async def channel_online(_event):
     now = datetime.now(tz=timezone.utc)
-    if Pause().is_paused() and SETTINGS.twitch.unpause_on_online:
-        added_min = Pause().resume("channel went online")
+    pause = Pause()
+    if pause.is_paused():
+        if SETTINGS.twitch.unpause_on_online:
+            added_min = pause.resume("channel went online")
+            log.info(
+                f"Pause resumed with an addition of {added_min:.02f} minutes"
+                f" for a total of {pause.minutes:.02f} minutes"
+            )
+            return
+        assert pause.start is not None
+        delta = (now - pause.start).total_seconds() / 60.0
         log.info(
-            f"Pause resumed with an addition of {added_min:.02f} minutes"
-            f" for a total of {Pause().minutes:.02f} minutes"
+            f"Channel went online at {now.isoformat()}, pause started at {pause.start.isoformat()} or {delta} min ago"
         )
-    elif Pause().is_paused():
-        delta = (now - Pause().start).total_seconds() / 60.0
-        log.info(
-            f"Channel went online at {now.isoformat()}, pause started at {Pause().start.isoformat()} or {delta} min ago"
-        )
-    else:
-        log.info(f"Channel went online at {now.isoformat()}, but time was not paused?!?")
+        return
+    log.info(f"Channel went online at {now.isoformat()}, but time was not paused?!?")
 
 
 async def channel_follow(event: ChannelFollowEvent):
