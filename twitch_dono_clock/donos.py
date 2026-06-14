@@ -37,8 +37,7 @@ class Donos(metaclass=Singleton):
         with cls.dono_path.open("r", encoding="utf-8") as f:
             reader = csv.DictReader(f, delimiter=",")
             assert reader.fieldnames == CSV_COLUMNS
-            for row in reader:
-                yield row
+            yield from reader
 
     @classmethod
     def read_csv(cls) -> dict[str, Any]:

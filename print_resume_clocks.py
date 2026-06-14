@@ -1,4 +1,5 @@
 """Print the time on clock for every resumed timestamp"""
+
 import sys
 from collections.abc import Iterable
 from datetime import datetime, timezone, tzinfo
