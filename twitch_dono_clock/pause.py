@@ -238,7 +238,7 @@ async def parse_time_from_cmd(cmd: ChatCommand, cmd_name: str):
             raise ValueError(f"Only use positive numbers with this command")
     except IndexError as err:
         fmt_dict |= {"err": str(err), "err_type": str(type(err))}
-        log.error(cmd.reply(SETTINGS.fmt.missing_time_parameter_failure.format(**fmt_dict)))
+        log.error(SETTINGS.fmt.missing_time_parameter_failure.format(**fmt_dict))
         await cmd.reply(SETTINGS.fmt.missing_time_parameter_failure.format(**fmt_dict))
         raise
     except ValueError as err:
