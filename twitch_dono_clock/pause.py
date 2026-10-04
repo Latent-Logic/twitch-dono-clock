@@ -122,6 +122,7 @@ class Pause(metaclass=Singleton):
     def resume(self, reason: str | None = None) -> float:
         if not self.is_paused():
             raise PauseNotPaused("Can't resume a paused timer if we're not paused")
+        assert isinstance(self._start, datetime)
         added_min = (datetime.now(tz=timezone.utc) - self._start).total_seconds() / 60
         self._minutes += added_min
         self._start = None
@@ -133,8 +134,12 @@ class Pause(metaclass=Singleton):
     def resumed_at(self, time: datetime, reason: str | None = None) -> float:
         if not self.is_paused():
             raise PauseNotPaused("Can't resume a paused timer if we're not paused")
+        assert isinstance(self._start, datetime)
         if time <= self._start:
             raise PauseException(f"Can't resume timer before the pause started (at {self._start.isoformat()})")
+        now = datetime.now(tz=timezone.utc)
+        if time > now:
+            raise PauseException(f"Can't resume timer at a time in the future ({time - now} from now)")
         added_min = (time - self._start).total_seconds() / 60
         self._minutes += added_min
         self._start = None
