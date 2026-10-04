@@ -280,7 +280,7 @@ def override_value(key: str, value: Any) -> dict[str, Any]:
         existing_overrides[key] = value
         with OVERRIDE_FILE.open("w") as f:
             toml.dump({OVERRIDES_KEY: existing_overrides}, f)
-    except (AttributeError, KeyError, TypeError):
+    except (AttributeError, KeyError, TypeError, ValueError):
         log.warning(f"Failed to on-the-fly override {key} with {value}")
         raise
     return existing_overrides
