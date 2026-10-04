@@ -8,7 +8,6 @@ from typing import Any
 from twitchAPI.chat import ChatCommand
 
 from twitch_dono_clock.config import CSV_TYPES, SETTINGS, SUBS, T1, T2, T3
-from twitch_dono_clock.end import End
 from twitch_dono_clock.utils import Singleton
 
 log = logging.getLogger(__name__)
@@ -255,9 +254,6 @@ async def add_tip_command(cmd: ChatCommand):
     }
     if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
         log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
-        return
-    elif End().is_ended():
-        await cmd.reply(SETTINGS.fmt.cmd_after_end.format(**fmt_dict))
         return
 
     parameters = cmd.parameter.split()
