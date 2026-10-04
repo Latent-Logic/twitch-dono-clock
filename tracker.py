@@ -599,20 +599,8 @@ async def get_donors(sort: str = "total"):
     }
     if sort not in donor_keys:
         return f"<html><body><pre>{html.escape(sort)} not in {tuple(donor_keys.keys())}</pre></body></html>"
-    donor_db = {}
-    for row in Donos.csv_iter():
-        user_db = donor_db.setdefault(
-            row["user"].lower(), {"name": row["user"], "total": 0, **{k: 0 for k in CSV_TYPES}}
-        )
-        if row["type"] == TIPS:
-            amount = float(row["amount"])
-            conv = SETTINGS.tips.convert.get(row["target"])
-            if conv:
-                amount *= conv.ratio
-        else:
-            amount = int(row["amount"])
-        user_db[row["type"]] += amount
-        user_db["total"] += amount * SETTINGS.get_value(row["type"])
+
+    donor_db = Donos.read_donors()
 
     build_table = "<table>\n"
     build_table += "<tr>" + "".join(f"<th><a href='?sort={s}'>{s}</a></th>" for s in donor_keys) + "</tr>\n"
@@ -622,6 +610,24 @@ async def get_donors(sort: str = "total"):
     style = """table {border: 2px solid rgb(140 140 140);}
     th,td {border: 1px solid rgb(160 160 160);}"""
     return f"<html><head><style>{style}</style></head><body>{build_table}</body></html>"
+
+
+@app.get("/donors_json", response_class=JSONResponse)
+async def get_donors_json(sort: str = "total"):
+    """Sum of donations by user returned as JSON. Can take same sort keys as /donors.
+
+    NOTE: This groups by case-insensitive string, KoFi donations aren't tied to twitch username"""
+    donor_keys = {
+        "name": (lambda x: x["name"].lower(), False),
+        "total": (lambda x: x["total"], True),
+        **{k: (lambda x, y=k: x[y], True) for k in CSV_TYPES},
+    }
+    if sort not in donor_keys:
+        raise HTTPException(status_code=400, detail=f"Unknown sort key: {sort}")
+
+    donor_db = Donos.read_donors()
+
+    return list(sorted(donor_db.values(), key=donor_keys[sort][0], reverse=donor_keys[sort][1]))
 
 
 websocket_html = """

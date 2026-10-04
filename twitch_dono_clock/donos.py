@@ -66,6 +66,24 @@ class Donos(metaclass=Singleton):
         return donos
 
     @classmethod
+    def read_donors(cls) -> dict[str, Any]:
+        donor_db = {}
+        for row in cls.csv_iter():
+            user_db = donor_db.setdefault(
+                row["user"].lower(), {"name": row["user"], "total": 0, **{k: 0 for k in CSV_TYPES}}
+            )
+            if row["type"] == TIPS:
+                amount = float(row["amount"])
+                conv = SETTINGS.tips.convert.get(row["target"])
+                if conv:
+                    amount *= conv.ratio
+            else:
+                amount = int(row["amount"])
+            user_db[row["type"]] += amount
+            user_db["total"] += amount * SETTINGS.get_value(row["type"])
+        return donor_db
+
+    @classmethod
     def build_follow_filter(cls) -> set[str]:
         follow_filter = set()
         for row in cls.csv_iter():
