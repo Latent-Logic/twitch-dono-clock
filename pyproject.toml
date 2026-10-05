@@ -16,6 +16,9 @@ uvicorn = "^0.40.0"
 websockets = "^16.0"
 pydantic = "^2.12.5"
 
+[tool.poetry.group.dev]
+optional = true
+
 [tool.isort]
 profile = "black"
 
@@ -25,3 +28,8 @@ line-length = 120
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "pytest (>=9.1.1,<10.0.0)"
+]
