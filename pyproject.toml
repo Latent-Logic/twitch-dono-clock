@@ -1,13 +1,14 @@
-[tool.poetry]
+[project]
 name = "twitch-dono-clock"
-version = "0.1.0"
+version = "0.2.0"
 description = "Twitch donothon clock based on reading chat"
-authors = ["Latent Logic <lat.logic@gmail.com>"]
+authors = [{name="Latent Logic", email="lat.logic@gmail.com"}]
 readme = "README.md"
 packages = [{include = "twitch_dono_clock"}]
+requires-python = ">=3.10"
+dynamic = ["dependencies"]
 
 [tool.poetry.dependencies]
-python = "^3.10"
 twitchAPI = "^4.5.0"
 aiofiles = "^25.1.0"
 toml = "^0.10.2"
