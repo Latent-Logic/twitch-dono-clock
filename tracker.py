@@ -5,7 +5,7 @@ import html
 import json
 import logging
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -41,6 +41,7 @@ from twitch_dono_clock.pause import (
     resume_command,
 )
 from twitch_dono_clock.spins import Spins, spin_done_command
+from twitch_dono_clock.timer import calc_end, calc_time_so_far, calc_timer
 
 BITS, TIPS, SUBS_T1, SUBS_T2, SUBS_T3, FOLLOWS = CSV_TYPES
 
@@ -221,48 +222,6 @@ async def raised_command(cmd: ChatCommand):
     response = SETTINGS.fmt.traised_success.format(**fmt_dict)
     log.info(response)
     await cmd.reply(response)
-
-
-def calc_end() -> timedelta:
-    """Find the timedelta to use for final calculations"""
-    end = End()
-    if end.end_min:
-        return timedelta(minutes=end.end_min)
-    minutes = Donos().calc_total_minutes()
-    if SETTINGS.end.max_minutes:
-        minutes = min(minutes, SETTINGS.end.max_minutes)
-    return timedelta(minutes=minutes)
-
-
-def calc_time_so_far() -> timedelta:
-    """How much time has been counted down since the start"""
-    end = End()
-    pause = Pause()
-    if end.is_ended():
-        cur_time = end.end_ts
-    elif pause.is_paused():
-        cur_time = pause.start
-    else:
-        cur_time = datetime.now(tz=timezone.utc)
-    time_so_far = cur_time - SETTINGS.start.time
-    corrected_tsf = time_so_far - timedelta(minutes=pause.minutes)
-    return corrected_tsf
-
-
-def calc_timer(handle_end: bool = True) -> str:
-    """Generate the timer string from the difference between paid and run minutes"""
-    if handle_end:
-        End().handle_end(calc_time_so_far, calc_end, Donos().calc_total_minutes)
-    remaining = calc_end() - calc_time_so_far()
-    hours = int(remaining.total_seconds() / 60 / 60)
-    minutes = int(remaining.total_seconds() / 60) % 60
-    seconds = int(remaining.total_seconds()) % 60
-    time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-    if SETTINGS.end.max_minutes and Donos().calc_total_minutes() >= SETTINGS.end.max_minutes:
-        time_str = SETTINGS.fmt.countdown_max.format(clock=time_str)
-    if Pause().is_paused():
-        time_str = SETTINGS.fmt.countdown_pause.format(clock=time_str)
-    return time_str
 
 
 async def channel_offline(_event):
