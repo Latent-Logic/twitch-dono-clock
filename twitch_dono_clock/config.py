@@ -191,32 +191,26 @@ class Settings(BaseModel):
         return self._compiled_re
 
     def get_value(self, type_name: str) -> float | int:
-        if type_name == BITS:
-            return self.bits.money
-        if type_name == TIPS:
-            return self.tips.money
-        if type_name == SUBS_T1:
-            return self.subs.tier.t1.money
-        if type_name == SUBS_T2:
-            return self.subs.tier.t2.money
-        if type_name == SUBS_T3:
-            return self.subs.tier.t3.money
-        if type_name == FOLLOWS:
-            return self.follows.money
+        money_map = {
+            BITS: self.bits.money,
+            TIPS: self.tips.money,
+            SUBS_T1: self.subs.tier.t1.money,
+            SUBS_T2: self.subs.tier.t2.money,
+            SUBS_T3: self.subs.tier.t3.money,
+            FOLLOWS: self.follows.money,
+        }
+        return money_map[type_name]
 
     def get_points(self, type_name: str) -> float | int:
-        if type_name == BITS:
-            return self.bits.points
-        if type_name == TIPS:
-            return self.tips.points
-        if type_name == SUBS_T1:
-            return self.subs.tier.t1.points
-        if type_name == SUBS_T2:
-            return self.subs.tier.t2.points
-        if type_name == SUBS_T3:
-            return self.subs.tier.t3.points
-        if type_name == FOLLOWS:
-            return self.follows.points
+        point_map = {
+            BITS: self.bits.points,
+            TIPS: self.tips.points,
+            SUBS_T1: self.subs.tier.t1.points,
+            SUBS_T2: self.subs.tier.t2.points,
+            SUBS_T3: self.subs.tier.t3.points,
+            FOLLOWS: self.follows.points,
+        }
+        return point_map[type_name]
 
     def raise_on_bad_password(self, to_check: str):
         if to_check != self.output.admin_pass.get_secret_value().format(channel=self.twitch.channel):
