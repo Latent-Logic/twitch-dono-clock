@@ -52,6 +52,7 @@ class Pause(metaclass=Singleton):
 
     def save(self):
         if self.is_paused():
+            assert self._start is not None
             self.pause_file.write_text(f"{self.minutes:.02f};{self._start.isoformat()}")
         else:
             self.pause_file.write_text(f"{self.minutes:.02f}")
@@ -151,6 +152,7 @@ class Pause(metaclass=Singleton):
     def abort_current(self, reason: str | None = None) -> datetime:
         if not self.is_paused():
             raise PauseNotPaused("Can't remove a paused from the timer if we're not paused")
+        assert isinstance(self.start, datetime)
         old_start = self.start
         self._start = None
         self.save()
@@ -206,7 +208,7 @@ async def resume_command(cmd: ChatCommand):
         await cmd.reply(response)
 
 
-async def parse_time_from_cmd(cmd: ChatCommand, cmd_name: str):
+async def parse_time_from_cmd(cmd: ChatCommand, cmd_name: str) -> float:
     fmt_dict = {
         "user": cmd.user.name,
         "cmd": cmd_name,
@@ -217,10 +219,10 @@ async def parse_time_from_cmd(cmd: ChatCommand, cmd_name: str):
     }
     if not (cmd.user.mod or cmd.user.name.lower() in SETTINGS.twitch.admin_users):
         log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
-        return
+        raise ValueError(f"Not Authorized User {cmd.user.name}")
     elif End().is_ended():
         await cmd.reply(SETTINGS.fmt.cmd_after_end.format(**fmt_dict))
-        return
+        raise RuntimeError("Attempted pause modification command run after timer end")
     try:
         raw = cmd.parameter.split()[0]
         if raw.endswith("h") or raw.endswith("hr") or raw.endswith("hrs"):
@@ -252,7 +254,7 @@ async def parse_time_from_cmd(cmd: ChatCommand, cmd_name: str):
 async def add_time_command(cmd: ChatCommand):
     try:
         minutes = await parse_time_from_cmd(cmd, "tadd")
-    except (IndexError, ValueError):
+    except (IndexError, ValueError, RuntimeError):
         return
     fmt_dict = {
         "user": cmd.user.name,

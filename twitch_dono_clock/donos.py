@@ -130,7 +130,7 @@ class Donos(metaclass=Singleton):
         if type == BITS:
             self.donos[BITS] += amount
         elif type == TIPS:
-            conv = SETTINGS.tips.convert.get(target)
+            conv = SETTINGS.tips.convert.get(target)  # pyright: ignore
             if conv:
                 log.info(
                     f"Converting {target} dono of {amount} to {amount*conv.ratio} from {conv.src} to {conv.target}"
@@ -274,6 +274,7 @@ async def add_tip_command(cmd: ChatCommand):
     except ValueError:
         await cmd.reply("Parameter [amount] must be parsable as numbers to be recorded")
         return
+    assert cmd.room is not None
     log.info(f"in {cmd.room.name}, {cmd.user.name} added tip from {giver}: {amount:.02f} w/ type {reason}")
     Donos().add_event(
         ts=cmd.sent_timestamp,

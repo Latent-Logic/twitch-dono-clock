@@ -80,6 +80,7 @@ async def on_ready(_ready_event: EventData):
 
 # this will be called whenever a message in a channel was send by either the bot OR another user
 async def on_message(msg: ChatMessage):
+    assert msg.room is not None
     if msg.source_room_id:
         if msg.source_room_id != msg.room.room_id:
             log.debug(f"Skipping shared-chat message from {msg.source_room_id} saying {msg.text}")
@@ -150,6 +151,7 @@ async def on_message(msg: ChatMessage):
 
 # this will be called whenever someone subscribes to a channel
 async def on_sub(sub: ChatSub):
+    assert sub.room is not None
     log_msg = (
         f"New subscription in {sub.room.name}:"
         f"\tType: {sub.sub_plan}"
@@ -298,7 +300,7 @@ async def lifespan(app: FastAPI):
             twitch.auto_refresh_auth = False
     else:
         auth = UserAuthenticator(twitch, USER_SCOPE, url=SETTINGS.twitch.auth_url)
-        token, refresh_token = await auth.authenticate(use_browser=False)
+        token, refresh_token = await auth.authenticate(use_browser=False)  # pyright: ignore
         await store_user_token(token, refresh_token)
     try:
         await twitch.set_user_authentication(token, USER_SCOPE, refresh_token)
@@ -309,6 +311,7 @@ async def lifespan(app: FastAPI):
     db = toml.loads(usr_token_file.read_text())
     if "name" not in db:
         bot_user = await first(twitch.get_users())
+        assert bot_user is not None
         new_text = toml.dumps({"name": bot_user.login, "token": token, "refresh_token": refresh_token})
         usr_token_file.write_text(new_text)
         log.info(f"Added bot name {bot_user.login} to {usr_token_file}")
@@ -317,6 +320,7 @@ async def lifespan(app: FastAPI):
 
     # Get id for twitch channel
     channel = await first(twitch.get_users(logins=[SETTINGS.twitch.channel]))
+    assert channel is not None
 
     # create eventsub websocket instance and start the client.
     eventsub = None
@@ -327,6 +331,7 @@ async def lifespan(app: FastAPI):
         await eventsub.listen_stream_online(channel.id, channel_online)
         if SETTINGS.twitch.follows:
             bot_user = await first(twitch.get_users())
+            assert bot_user is not None
             await eventsub.listen_channel_follow_v2(
                 broadcaster_user_id=channel.id, moderator_user_id=bot_user.id, callback=channel_follow
             )
@@ -375,12 +380,12 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
-class JSONResponse(JSONResponse):
+class JSONResponseP(JSONResponse):
     def render(self, content) -> bytes:
         return json.dumps(content, ensure_ascii=False, allow_nan=False, indent=4, separators=(",", ":")).encode("utf-8")
 
 
-@app.get("/live_stats", response_class=JSONResponse)
+@app.get("/live_stats", response_class=JSONResponseP)
 async def get_live_stats():
     """Get a current snapshot of pause state, donation breakdown, and end state"""
     full_stats = {"pause": Pause().to_dict(), "donos": Donos().to_dict(), "end": End().to_dict()}
@@ -443,7 +448,7 @@ async def get_calc_timer():
     return calc_timer()
 
 
-@app.get("/traised", response_class=JSONResponse)
+@app.get("/traised", response_class=JSONResponseP)
 async def traised_fields():
     """Get a list of all the fields available for the !traised chat command
 
@@ -501,7 +506,7 @@ async def get_events(timezone: str | None = None):
 
     events_per_day = {}
     for row in Donos.csv_iter():
-        row["time"]: datetime = datetime.fromtimestamp(int(row["time"]) / 1000).astimezone(tz)
+        row["time"] = datetime.fromtimestamp(int(row["time"]) / 1000).astimezone(tz)  # pyright: ignore
         day = row["time"].date()
         day_list = events_per_day.setdefault(day, [])
         day_list.append(row)
@@ -527,7 +532,7 @@ async def get_events_csv():
     return Donos.dono_path.read_text()
 
 
-@app.get("/events_targets", response_class=JSONResponse)
+@app.get("/events_targets", response_class=JSONResponseP)
 async def get_events_targets():
     """Sum of tips and bits by target string, useful for grouping sources when tagged"""
     donation_targets = {TIPS: {}, BITS: {}}
@@ -574,7 +579,7 @@ async def get_donors(sort: str = "total"):
     return f"<html><head><style>{style}</style></head><body>{build_table}</body></html>"
 
 
-@app.get("/donors_json", response_class=JSONResponse)
+@app.get("/donors_json", response_class=JSONResponseP)
 async def get_donors_json(sort: str = "total"):
     """Sum of donations by user returned as JSON. Can take same sort keys as /donors.
 
@@ -691,7 +696,7 @@ async def websocket_counter_endpoint(websocket: WebSocket, item: COUNTER_TYPES):
         pass
 
 
-@app.put("/admin/end/clear", response_class=JSONResponse)
+@app.put("/admin/end/clear", response_class=JSONResponseP)
 async def put_end_clear(password: str):
     """Clear the end latch at 00:00:00 and continue as if it hadn't ended
 
@@ -708,7 +713,7 @@ async def put_end_clear(password: str):
         raise HTTPException(status_code=409, detail=str(e))
 
 
-@app.put("/admin/pause/begin", response_class=JSONResponse)
+@app.put("/admin/pause/begin", response_class=JSONResponseP)
 async def put_pause_begin(password: str, time: datetime | None = None):
     """Start a pause at the given timestamp, if not specified it will start a pause when called."""
     SETTINGS.raise_on_bad_password(password)
@@ -724,7 +729,7 @@ async def put_pause_begin(password: str, time: datetime | None = None):
         raise HTTPException(status_code=409, detail=str(e))
 
 
-@app.put("/admin/pause/resume", response_class=JSONResponse)
+@app.put("/admin/pause/resume", response_class=JSONResponseP)
 async def put_pause_resume(password: str, time: datetime | None = None):
     """Resume from a pause at the given timestamp, if not specified it will resume at call time."""
     SETTINGS.raise_on_bad_password(password)
@@ -740,7 +745,7 @@ async def put_pause_resume(password: str, time: datetime | None = None):
         raise HTTPException(status_code=409, detail=str(e))
 
 
-@app.put("/admin/pause/abort", response_class=JSONResponse)
+@app.put("/admin/pause/abort", response_class=JSONResponseP)
 async def put_pause_abort(password: str):
     """Clear a paused state without changing the total number of minutes paused"""
     SETTINGS.raise_on_bad_password(password)
@@ -752,7 +757,7 @@ async def put_pause_abort(password: str):
         raise HTTPException(status_code=409, detail=str(e))
 
 
-@app.put("/admin/pause/minutes", response_class=JSONResponse)
+@app.put("/admin/pause/minutes", response_class=JSONResponseP)
 async def put_set_minutes(password: str, minutes: float):
     """Hard reset the number of minutes paused.
 
@@ -767,7 +772,7 @@ async def put_set_minutes(password: str, minutes: float):
         raise HTTPException(status_code=409, detail=str(e))
 
 
-@app.put("/admin/donos/reload", response_class=JSONResponse)
+@app.put("/admin/donos/reload", response_class=JSONResponseP)
 async def put_donos_reload(password: str):
     """Reload the donations CSV file from disk, really only useful w/ filesystem access to fix issues on disk"""
     SETTINGS.raise_on_bad_password(password)
@@ -776,7 +781,7 @@ async def put_donos_reload(password: str):
     return {"old": old_values, "new": Donos().to_dict()}
 
 
-@app.put("/admin/donos/wipe", response_class=JSONResponse)
+@app.put("/admin/donos/wipe", response_class=JSONResponseP)
 async def put_donos_wipe(password: str, are_you_sure: bool = False):
     """Clear the donations file by moving old file to timestamped backup and starting a fresh CSV file"""
     SETTINGS.raise_on_bad_password(password)
@@ -787,13 +792,13 @@ async def put_donos_wipe(password: str, are_you_sure: bool = False):
     return {"old": old_values, "new": Donos().to_dict(), "backup": filename}
 
 
-@app.get("/admin/settings", response_class=JSONResponse)
+@app.get("/admin/settings", response_class=JSONResponseP)
 async def get_settings(password: str):
     SETTINGS.raise_on_bad_password(password)
     return SETTINGS.model_dump()
 
 
-@app.put("/admin/settings/overrides", response_class=JSONResponse)
+@app.put("/admin/settings/overrides", response_class=JSONResponseP)
 async def put_settings_overrides(password: str):
     """Show the settings overrides that have been changed on the fly"""
     SETTINGS.raise_on_bad_password(password)
@@ -803,7 +808,7 @@ async def put_settings_overrides(password: str):
         raise HTTPException(status_code=409, detail=str(e))
 
 
-@app.put("/admin/settings/override_value", response_class=JSONResponse)
+@app.put("/admin/settings/override_value", response_class=JSONResponseP)
 async def put_settings_override_value(password: str, key: str, value: Any):
     """Allow overriding settings on the fly by specifying a key and new value
 
@@ -824,7 +829,7 @@ async def put_settings_override_value(password: str, key: str, value: Any):
 
 if Spins.enabled:
 
-    @app.put("/admin/spins/increment", response_class=JSONResponse)
+    @app.put("/admin/spins/increment", response_class=JSONResponseP)
     async def put_spins_increment(password: str, increment_amount: Annotated[int, Query(ge=1)] = 1):
         """Increase the spin count by increment_amount, or 1 if not specified"""
         SETTINGS.raise_on_bad_password(password)
@@ -835,7 +840,7 @@ if Spins.enabled:
         except Exception as e:
             raise HTTPException(status_code=409, detail=str(e))
 
-    @app.put("/admin/spins/set", response_class=JSONResponse)
+    @app.put("/admin/spins/set", response_class=JSONResponseP)
     async def put_spins_set(password: str, new_total: Annotated[int, Query(ge=0)]):
         """Hard set the spin count to new_total"""
         SETTINGS.raise_on_bad_password(password)

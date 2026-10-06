@@ -27,6 +27,7 @@ def calc_time_so_far() -> timedelta:
         cur_time = pause.start
     else:
         cur_time = datetime.now(tz=timezone.utc)
+    assert cur_time is not None
     time_so_far = cur_time - SETTINGS.start.time
     corrected_tsf = time_so_far - timedelta(minutes=pause.minutes)
     return corrected_tsf
