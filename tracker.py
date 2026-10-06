@@ -41,7 +41,12 @@ from twitch_dono_clock.pause import (
     resume_command,
 )
 from twitch_dono_clock.spins import Spins, spin_done_command
-from twitch_dono_clock.timer import calc_end, calc_time_so_far, calc_timer
+from twitch_dono_clock.timer import (
+    calc_end,
+    calc_time_so_far,
+    calc_timer,
+    calc_timer_dict,
+)
 
 BITS, TIPS, SUBS_T1, SUBS_T2, SUBS_T3, FOLLOWS = CSV_TYPES
 
@@ -655,13 +660,21 @@ async def get_live_counter(item: COUNTER_TYPES | None = None):
 
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket, fmt: Literal["str", "json"] = "str"):
     """Websocket that sends out the current timer twice a second to keep accurate status"""
+    if fmt == "json":
+
+        def json_fmt():
+            return json.dumps(calc_timer_dict())
+
+        calc = json_fmt
+    else:
+        calc = calc_timer
     await websocket.accept()
     try:
         while True:
             try:
-                await websocket.send_text(calc_timer())
+                await websocket.send_text(calc())
                 await asyncio.sleep(0.5)
             except ConnectionClosedOK:
                 break
