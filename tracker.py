@@ -670,11 +670,15 @@ async def websocket_endpoint(websocket: WebSocket, fmt: Literal["str", "json"] =
         calc = json_fmt
     else:
         calc = calc_timer
+    last_sent = None
     await websocket.accept()
     try:
         while True:
             try:
-                await websocket.send_text(calc())
+                cur_msg = calc()
+                if cur_msg != last_sent:
+                    await websocket.send_text(cur_msg)
+                    last_sent = cur_msg
                 await asyncio.sleep(0.5)
             except ConnectionClosedOK:
                 break
