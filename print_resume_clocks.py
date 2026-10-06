@@ -6,11 +6,11 @@ from datetime import datetime, timezone, tzinfo
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from test_tracker import calc_time_so_far, calc_timer
 from twitch_dono_clock.config import SETTINGS
 from twitch_dono_clock.donos import BITS, SUBS, T1, T2, T3, TIPS, Donos
 from twitch_dono_clock.end import End
 from twitch_dono_clock.pause import Pause
+from twitch_dono_clock.timer import calc_time_so_far, calc_timer
 
 TIMEZONE = "America/Los_Angeles"
 
