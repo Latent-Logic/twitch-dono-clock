@@ -127,6 +127,9 @@ async def on_message(msg: ChatMessage):
                 log.info(f"in {msg.room.name}, {match['user']} sent {dono_type}{via}: {match['amount']}")
                 if dono_type == BITS:
                     amount = int(match["amount"].replace(",", ""))
+                    if match["user"].lower() == msg.room.name.lower():
+                        log.info(f"Skipping bits from streamer {match['user']} in own channel of {match['amount']}")
+                        continue
                 elif dono_type == TIPS:
                     amount = float(match["amount"].replace(",", ""))
                 elif dono_type == FOLLOWS:
