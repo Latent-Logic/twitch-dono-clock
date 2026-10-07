@@ -613,15 +613,15 @@ websocket_html = """
     <body>
         <div id='text'>Not Yet Connected</div>
         <script>
-            var ws
+            let ws;
+            const el = document.getElementById('text');
             function connect() {{
                 ws = new WebSocket("{hostname}/{path}");
-                ws.onmessage = function(event) {{ document.getElementById('text').innerText = event.data }}
+                ws.onmessage = (event) => {{el.textContent = event.data;}};
+                ws.onclose = () => {{setTimeout(connect, 5000);}};
+                ws.onerror = (err) => {{console.error('WebSocket Error:', err);}};
             }}
-            connect()
-            var interval = setInterval(function() {{
-                    if (ws.readyState === WebSocket.CLOSED) {{ connect() }}
-            }}, 60000);
+            connect();
         </script>
     </body>
 </html>
