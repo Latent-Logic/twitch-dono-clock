@@ -7,6 +7,7 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from time import monotonic
 from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -671,14 +672,17 @@ async def websocket_endpoint(websocket: WebSocket, fmt: Literal["str", "json"] =
     else:
         calc = calc_timer
     last_sent = None
+    last_sent_time = monotonic()
     await websocket.accept()
     try:
         while True:
             try:
                 cur_msg = calc()
-                if cur_msg != last_sent:
+                now = monotonic()
+                if cur_msg != last_sent or last_sent_time < (now - 25):
                     await websocket.send_text(cur_msg)
                     last_sent = cur_msg
+                    last_sent_time = now
                 await asyncio.sleep(0.5)
             except ConnectionClosedOK:
                 break
