@@ -5,7 +5,7 @@ from twitchAPI.chat import ChatCommand
 
 from twitch_dono_clock.config import SETTINGS
 from twitch_dono_clock.donos import Donos
-from twitch_dono_clock.utils import Singleton
+from twitch_dono_clock.utils import ChatReplies, Singleton
 
 log = logging.getLogger(__name__)
 
@@ -76,12 +76,12 @@ async def spin_done_command(cmd: ChatCommand):
         try:
             Spins().set_performed(int(parameters[0]))
         except ValueError:
-            await cmd.reply(f"The new total `{parameters[0]}` must be parsable as an integer")
+            await ChatReplies().send_reply(cmd, f"The new total `{parameters[0]}` must be parsable as an integer")
             return
         fmt_dict["spins_done"] = Spins().performed
         response = "Spin counter set from {old_spins_done} to {spins_done} out of {spins_to_do}".format(**fmt_dict)
     else:
-        await cmd.reply("Command format !{cmd} (check|<new_total>)".format(**fmt_dict))
+        await ChatReplies().send_reply(cmd, "Command format !{cmd} (check|<new_total>)".format(**fmt_dict))
         return
     log.info(response)
-    await cmd.reply(response)
+    await ChatReplies().send_reply(cmd, response)

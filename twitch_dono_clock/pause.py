@@ -7,7 +7,7 @@ from twitchAPI.chat import ChatCommand
 
 from twitch_dono_clock.config import SETTINGS
 from twitch_dono_clock.end import End
-from twitch_dono_clock.utils import Singleton
+from twitch_dono_clock.utils import ChatReplies, Singleton
 
 log = logging.getLogger(__name__)
 
@@ -174,16 +174,16 @@ async def pause_command(cmd: ChatCommand):
         log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
         return
     elif End().is_ended():
-        await cmd.reply(SETTINGS.fmt.cmd_after_end.format(**fmt_dict))
+        await ChatReplies().send_reply(cmd, SETTINGS.fmt.cmd_after_end.format(**fmt_dict))
         return
     if Pause().is_paused():
-        await cmd.reply(SETTINGS.fmt.tpause_failure.format(**fmt_dict))
+        await ChatReplies().send_reply(cmd, SETTINGS.fmt.tpause_failure.format(**fmt_dict))
     else:
         Pause().start_pause("!{cmd}".format(**fmt_dict))
         fmt_dict["pause_start"] = Pause().start
         response = SETTINGS.fmt.tpause_success.format(**fmt_dict)
         log.info(response)
-        await cmd.reply(response)
+        await ChatReplies().send_reply(cmd, response)
 
 
 async def resume_command(cmd: ChatCommand):
@@ -197,7 +197,7 @@ async def resume_command(cmd: ChatCommand):
         log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
         return
     if not Pause().is_paused():
-        await cmd.reply(SETTINGS.fmt.tresume_failure.format(**fmt_dict))
+        await ChatReplies().send_reply(cmd, SETTINGS.fmt.tresume_failure.format(**fmt_dict))
     else:
         added_min = Pause().resume("!{cmd}".format(**fmt_dict))
         fmt_dict["pause_min"] = Pause().minutes
@@ -205,7 +205,7 @@ async def resume_command(cmd: ChatCommand):
         fmt_dict["pause_start"] = None
         response = SETTINGS.fmt.tresume_success.format(**fmt_dict)
         log.info(response)
-        await cmd.reply(response)
+        await ChatReplies().send_reply(cmd, response)
 
 
 async def parse_time_from_cmd(cmd: ChatCommand, cmd_name: str) -> float:
@@ -221,7 +221,7 @@ async def parse_time_from_cmd(cmd: ChatCommand, cmd_name: str) -> float:
         log.warning(SETTINGS.fmt.cmd_blocked.format(**fmt_dict))
         raise ValueError(f"Not Authorized User {cmd.user.name}")
     elif End().is_ended():
-        await cmd.reply(SETTINGS.fmt.cmd_after_end.format(**fmt_dict))
+        await ChatReplies().send_reply(cmd, SETTINGS.fmt.cmd_after_end.format(**fmt_dict))
         raise RuntimeError("Attempted pause modification command run after timer end")
     try:
         raw = cmd.parameter.split()[0]
@@ -241,12 +241,12 @@ async def parse_time_from_cmd(cmd: ChatCommand, cmd_name: str) -> float:
     except IndexError as err:
         fmt_dict |= {"err": str(err), "err_type": str(type(err))}
         log.error(SETTINGS.fmt.missing_time_parameter_failure.format(**fmt_dict))
-        await cmd.reply(SETTINGS.fmt.missing_time_parameter_failure.format(**fmt_dict))
+        await ChatReplies().send_reply(cmd, SETTINGS.fmt.missing_time_parameter_failure.format(**fmt_dict))
         raise
     except ValueError as err:
         fmt_dict |= {"err": str(err), "err_type": str(type(err))}
         log.error(SETTINGS.fmt.invalid_time_parameter_failure.format(**fmt_dict))
-        await cmd.reply(SETTINGS.fmt.invalid_time_parameter_failure.format(**fmt_dict))
+        await ChatReplies().send_reply(cmd, SETTINGS.fmt.invalid_time_parameter_failure.format(**fmt_dict))
         raise
     return mins
 
@@ -266,7 +266,7 @@ async def add_time_command(cmd: ChatCommand):
     Pause().pause_increase(minutes, "!{cmd}".format(**fmt_dict))
     response = SETTINGS.fmt.tadd_success.format(**fmt_dict)
     log.info(response)
-    await cmd.reply(response)
+    await ChatReplies().send_reply(cmd, response)
 
 
 async def remove_time_command(cmd: ChatCommand):
@@ -284,4 +284,4 @@ async def remove_time_command(cmd: ChatCommand):
     Pause().pause_reduce(minutes, "!{cmd}".format(**fmt_dict))
     response = SETTINGS.fmt.tremove_success.format(**fmt_dict)
     log.info(response)
-    await cmd.reply(response)
+    await ChatReplies().send_reply(cmd, response)

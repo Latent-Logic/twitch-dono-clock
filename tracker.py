@@ -21,7 +21,12 @@ from twitchAPI.helper import first
 from twitchAPI.oauth import UserAuthenticator
 from twitchAPI.object.eventsub import ChannelFollowEvent
 from twitchAPI.twitch import Twitch
-from twitchAPI.type import AuthScope, ChatEvent, TwitchAPIException
+from twitchAPI.type import (
+    AuthScope,
+    ChatEvent,
+    TwitchAPIException,
+    TwitchAuthorizationException,
+)
 from websockets import ConnectionClosedOK
 
 from twitch_dono_clock.config import (
@@ -48,14 +53,17 @@ from twitch_dono_clock.timer import (
     calc_timer,
     calc_timer_dict,
 )
+from twitch_dono_clock.utils import ChatReplies
 
 BITS, TIPS, SUBS_T1, SUBS_T2, SUBS_T3, FOLLOWS = CSV_TYPES
 
-# "chat:read chat:edit"
+# "chat:read chat:edit" IRC read/write
 USER_SCOPE = [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT]
 
-if SETTINGS.twitch.follows:
+if SETTINGS.twitch.follows:  # moderator:read:followers to see followers as they arrive
     USER_SCOPE.append(AuthScope.MODERATOR_READ_FOLLOWERS)
+if SETTINGS.twitch.cmd_app_auth_reply:  # user:bot bot so app auth can send_chat_message
+    USER_SCOPE.append(AuthScope.USER_BOT)
 
 log = logging.getLogger("test_tracker")
 
@@ -232,7 +240,7 @@ async def raised_command(cmd: ChatCommand):
     }
     response = SETTINGS.fmt.traised_success.format(**fmt_dict)
     log.info(response)
-    await cmd.reply(response)
+    await ChatReplies().send_reply(cmd, response)
 
 
 async def channel_offline(_event):
@@ -285,10 +293,12 @@ async def store_user_token(user_auth_token, user_auth_refresh_token):
     usr_token_file = Path(SETTINGS.twitch.user_token_file)
     if usr_token_file.is_file():
         db = toml.loads(usr_token_file.read_text())
-        bot_name = db.get("name")
+        bot_name, user_id = db.get("name"), db.get("user_id")
     else:
-        bot_name = None
-    new_text = toml.dumps({"name": bot_name, "token": user_auth_token, "refresh_token": user_auth_refresh_token})
+        bot_name = user_id = None
+    new_text = toml.dumps(
+        {"name": bot_name, "user_id": user_id, "token": user_auth_token, "refresh_token": user_auth_refresh_token}
+    )
     usr_token_file.write_text(new_text)
     log.info(f"Wrote updated {usr_token_file}")
 
@@ -298,6 +308,16 @@ async def lifespan(app: FastAPI):
     # set up twitch api instance and add user authentication with some scopes
     twitch = await Twitch(SETTINGS.twitch.app_id, SETTINGS.twitch.app_secret.get_secret_value())
     twitch.user_auth_refresh_callback = store_user_token
+
+    if SETTINGS.twitch.cmd_app_auth_reply:
+        # App Auth is only used for the for_source_only command reply for shared chats.
+        try:
+            await twitch.authenticate_app([AuthScope.USER_WRITE_CHAT])
+        except TwitchAuthorizationException:
+            ChatReplies().disable_app_auth_replies()
+    else:
+        ChatReplies().disable_app_auth_replies()
+
     usr_token_file = Path(SETTINGS.twitch.user_token_file)
     if usr_token_file.is_file():
         user_auth = toml.load(usr_token_file)
@@ -315,14 +335,19 @@ async def lifespan(app: FastAPI):
         raise
 
     db = toml.loads(usr_token_file.read_text())
-    if "name" not in db:
+    if not (db.get("name") and db.get("user_id")):
         bot_user = await first(twitch.get_users())
         assert bot_user is not None
-        new_text = toml.dumps({"name": bot_user.login, "token": token, "refresh_token": refresh_token})
+        new_text = toml.dumps(
+            {"name": bot_user.login, "user_id": bot_user.id, "token": token, "refresh_token": refresh_token}
+        )
         usr_token_file.write_text(new_text)
-        log.info(f"Added bot name {bot_user.login} to {usr_token_file}")
+        log.info(f"Added bot name {bot_user.login} and id {bot_user.id} to {usr_token_file}")
+        bot_id = bot_user.id
     else:
         log.info(f"Bot name from {usr_token_file} is {db['name']}")
+        bot_id = db["user_id"]
+    ChatReplies().set_bot_user_id(bot_id)
 
     # Get id for twitch channel
     channel = await first(twitch.get_users(logins=[SETTINGS.twitch.channel]))

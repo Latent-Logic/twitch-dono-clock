@@ -8,7 +8,7 @@ from typing import Any
 from twitchAPI.chat import ChatCommand
 
 from twitch_dono_clock.config import CSV_TYPES, SETTINGS, SUBS, T1, T2, T3
-from twitch_dono_clock.utils import Singleton
+from twitch_dono_clock.utils import ChatReplies, Singleton
 
 log = logging.getLogger(__name__)
 
@@ -263,7 +263,7 @@ async def add_tip_command(cmd: ChatCommand):
     elif len(parameters) == 3:
         giver, amount_str, reason = parameters
     else:
-        await cmd.reply("Command format !{cmd} [donor] [amount] <type-of-tip>".format(**fmt_dict))
+        await ChatReplies().send_reply(cmd, "Command format !{cmd} [donor] [amount] <type-of-tip>".format(**fmt_dict))
         return
     if giver.startswith("@"):
         giver = giver[1:]
@@ -272,7 +272,7 @@ async def add_tip_command(cmd: ChatCommand):
     try:
         amount = float(amount_str)
     except ValueError:
-        await cmd.reply("Parameter [amount] must be parsable as numbers to be recorded")
+        await ChatReplies().send_reply(cmd, "Parameter [amount] must be parsable as numbers to be recorded")
         return
     assert cmd.room is not None
     log.info(f"in {cmd.room.name}, {cmd.user.name} added tip from {giver}: {amount:.02f} w/ type {reason}")
@@ -284,6 +284,6 @@ async def add_tip_command(cmd: ChatCommand):
         amount=amount,
     )
     if reason:
-        await cmd.reply(f"Recorded tip from {giver} of ${amount:.02f} with type {reason}")
+        await ChatReplies().send_reply(cmd, f"Recorded tip from {giver} of ${amount:.02f} with type {reason}")
     else:
-        await cmd.reply(f"Recorded tip from {giver} of ${amount:.02f}")
+        await ChatReplies().send_reply(cmd, f"Recorded tip from {giver} of ${amount:.02f}")

@@ -22,6 +22,7 @@ class SetTwitch(BaseModel):
     auth_url: str
     user_token_file: str
     enable_cmds: bool
+    cmd_app_auth_reply: bool = True
     admin_users: list[str]
     eventsub: bool
     pause_on_offline: bool
