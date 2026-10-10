@@ -330,10 +330,8 @@ async def lifespan(app: FastAPI):
         await eventsub.listen_stream_offline(channel.id, channel_offline)
         await eventsub.listen_stream_online(channel.id, channel_online)
         if SETTINGS.twitch.follows:
-            bot_user = await first(twitch.get_users())
-            assert bot_user is not None
             await eventsub.listen_channel_follow_v2(
-                broadcaster_user_id=channel.id, moderator_user_id=bot_user.id, callback=channel_follow
+                broadcaster_user_id=channel.id, moderator_user_id=bot_id, callback=channel_follow
             )
 
     # create chat instance
