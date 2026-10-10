@@ -161,6 +161,39 @@ class Pause(metaclass=Singleton):
         return old_start
 
 
+async def channel_offline(_event):
+    now = datetime.now(tz=timezone.utc)
+    pause = Pause()
+    if pause.is_paused():
+        assert pause.start is not None
+        log.info(f"Channel went offline at {now.isoformat()}, already was paused at {pause.start.isoformat()}")
+    elif SETTINGS.twitch.pause_on_offline:
+        now = pause.start_pause("channel went offline")
+        log.info(f"Channel went offline at {now.isoformat()}, pause started")
+    else:
+        log.info(f"Channel went offline at {now.isoformat()}, but pause not started, timer is still running")
+
+
+async def channel_online(_event):
+    now = datetime.now(tz=timezone.utc)
+    pause = Pause()
+    if pause.is_paused():
+        if SETTINGS.twitch.unpause_on_online:
+            added_min = pause.resume("channel went online")
+            log.info(
+                f"Pause resumed with an addition of {added_min:.02f} minutes"
+                f" for a total of {pause.minutes:.02f} minutes"
+            )
+            return
+        assert pause.start is not None
+        delta = (now - pause.start).total_seconds() / 60.0
+        log.info(
+            f"Channel went online at {now.isoformat()}, pause started at {pause.start.isoformat()} or {delta} min ago"
+        )
+        return
+    log.info(f"Channel went online at {now.isoformat()}, but time was not paused?!?")
+
+
 async def pause_command(cmd: ChatCommand):
     fmt_dict = {
         "user": cmd.user.name,
