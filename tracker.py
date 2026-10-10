@@ -36,7 +36,7 @@ from twitch_dono_clock.config import (
     load_overrides,
     override_value,
 )
-from twitch_dono_clock.donos import CSV_COLUMNS, Donos, add_tip_command
+from twitch_dono_clock.donos import CSV_COLUMNS, Donos, add_tip_command, channel_bits
 from twitch_dono_clock.end import End, EndException
 from twitch_dono_clock.pause import (
     Pause,
@@ -66,6 +66,8 @@ if SETTINGS.twitch.follows:  # moderator:read:followers to see followers as they
     USER_SCOPE.append(AuthScope.MODERATOR_READ_FOLLOWERS)
 if SETTINGS.twitch.cmd_app_auth_reply:  # user:bot bot so app auth can send_chat_message
     USER_SCOPE.append(AuthScope.USER_BOT)
+if SETTINGS.twitch.eventsub_bits:  # bits:read to be able to see custom Power-Ups
+    USER_SCOPE.append(AuthScope.BITS_READ)
 
 log = logging.getLogger("test_tracker")
 
@@ -329,6 +331,8 @@ async def lifespan(app: FastAPI):
         eventsub.start()
         await eventsub.listen_stream_offline(channel.id, channel_offline)
         await eventsub.listen_stream_online(channel.id, channel_online)
+        if SETTINGS.twitch.eventsub_bits:
+            await eventsub.listen_channel_bits_use(channel.id, channel_bits)
         if SETTINGS.twitch.follows:
             await eventsub.listen_channel_follow_v2(
                 broadcaster_user_id=channel.id, moderator_user_id=bot_id, callback=channel_follow

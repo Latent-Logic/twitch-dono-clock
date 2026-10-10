@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from twitchAPI.chat import ChatCommand
+from twitchAPI.object.eventsub import ChannelBitsUseEvent
 
 from twitch_dono_clock.config import CSV_TYPES, SETTINGS, SUBS, T1, T2, T3
 from twitch_dono_clock.utils import ChatReplies, Singleton
@@ -245,6 +246,23 @@ class Donos(metaclass=Singleton):
     @property
     def points(self) -> int:
         return int(self.calc_points())
+
+
+async def channel_bits(event: ChannelBitsUseEvent):
+    ts = int(event.metadata.message_timestamp.timestamp() * 1000)
+    user = event.event.user_name
+    bits = event.event.bits
+    log.debug(f"EventSub bits {event=}")
+    if event.event.type == "cheer":
+        log.info(f"{user} sent {bits=} as a cheer at {ts}")
+    elif event.event.type == "power_up":
+        assert event.event.power_up is not None
+        powerup_type = event.event.power_up.type
+        log.info(f"{user} sent {bits=} as a {powerup_type} power up at {ts}")
+    elif event.event.type == "custom_power_up":
+        log.info(f"{user} sent {bits=} as a custom powerup at {ts}")
+    else:
+        log.info(f"{user} sent {bits=} as unknown type {event.event.type} at {ts}")
 
 
 async def add_tip_command(cmd: ChatCommand):
