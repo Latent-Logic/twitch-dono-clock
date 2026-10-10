@@ -12,7 +12,7 @@ dynamic = ["dependencies"]
 twitchAPI = "^4.5.0"
 aiofiles = "^25.1.0"
 toml = "^0.10.2"
-fastapi = {extras = ["standard-no-fastapi-cloud-cli"], version = "^0.128.0"}
+fastapi = {extras = ["standard-no-fastapi-cloud-cli"], version = "^0.143.0"}
 uvicorn = "^0.40.0"
 websockets = "^16.0"
 pydantic = "^2.12.5"
