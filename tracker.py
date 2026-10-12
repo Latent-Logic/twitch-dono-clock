@@ -294,7 +294,10 @@ async def lifespan(app: FastAPI):
         if not refresh_token:
             twitch.auto_refresh_auth = False
     else:
-        auth = UserAuthenticator(twitch, USER_SCOPE, url=SETTINGS.twitch.auth_url)
+        ask_scope = USER_SCOPE
+        if SETTINGS.twitch.cmd_app_auth_reply:  # Need to ask for user:write:chat even though we don't run with it
+            ask_scope.append(AuthScope.USER_WRITE_CHAT)
+        auth = UserAuthenticator(twitch, ask_scope, url=SETTINGS.twitch.auth_url)
         token, refresh_token = await auth.authenticate(use_browser=False)  # pyright: ignore
         await store_user_token(token, refresh_token)
     try:
