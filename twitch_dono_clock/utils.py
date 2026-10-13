@@ -1,5 +1,8 @@
 import logging
 from abc import ABCMeta
+from datetime import datetime
+from enum import Enum
+from typing import NamedTuple
 
 from twitchAPI.chat import ChatCommand
 from twitchAPI.type import TwitchAPIException, UnauthorizedException
@@ -57,3 +60,18 @@ class ChatReplies(metaclass=Singleton):
             except (TwitchAPIException, KeyError) as err:
                 log.warning(f"Chat app-auth reply failed: {err!r})")
         await cmd.reply(message)
+
+
+class BitType(Enum):
+    GIGANTIFIED_EMOTE = 1
+    ANIMATED_MESSAGE = 2
+    CELEBRATION = 3
+    POWER_UP = 4
+
+
+class BitRedeem(NamedTuple):
+    type: BitType
+    title: str
+    timestamp: datetime
+    user: str
+    cost: int

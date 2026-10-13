@@ -36,7 +36,12 @@ from twitch_dono_clock.config import (
     load_overrides,
     override_value,
 )
-from twitch_dono_clock.donos import CSV_COLUMNS, Donos, add_tip_command
+from twitch_dono_clock.donos import (
+    CSV_COLUMNS,
+    Donos,
+    add_tip_command,
+    pubsub_bit_redeem,
+)
 from twitch_dono_clock.end import End, EndException
 from twitch_dono_clock.pause import (
     Pause,
@@ -48,6 +53,7 @@ from twitch_dono_clock.pause import (
     remove_time_command,
     resume_command,
 )
+from twitch_dono_clock.pub_sub import subscribe_redemptions
 from twitch_dono_clock.spins import Spins, spin_done_command
 from twitch_dono_clock.timer import (
     calc_end,
@@ -325,6 +331,9 @@ async def lifespan(app: FastAPI):
     channel = await first(twitch.get_users(logins=[SETTINGS.twitch.channel]))
     assert channel is not None
 
+    # Start PubSub listener for community-points-channel
+    pubsub_task = asyncio.create_task(subscribe_redemptions(channel.id, pubsub_bit_redeem))
+
     # create eventsub websocket instance and start the client.
     eventsub = None
     if SETTINGS.twitch.eventsub:
@@ -372,6 +381,11 @@ async def lifespan(app: FastAPI):
 
     if eventsub:
         await eventsub.stop()
+    pubsub_task.cancel()
+    try:
+        await pubsub_task
+    except asyncio.CancelledError:
+        pass
     # now we can close the chat bot and the twitch api client
     chat.stop()
     await twitch.close()

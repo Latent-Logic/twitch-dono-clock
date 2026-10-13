@@ -8,7 +8,7 @@ from typing import Any
 from twitchAPI.chat import ChatCommand
 
 from twitch_dono_clock.config import CSV_TYPES, SETTINGS, SUBS, T1, T2, T3
-from twitch_dono_clock.utils import ChatReplies, Singleton
+from twitch_dono_clock.utils import BitRedeem, BitType, ChatReplies, Singleton
 
 log = logging.getLogger(__name__)
 
@@ -287,3 +287,24 @@ async def add_tip_command(cmd: ChatCommand):
         await ChatReplies().send_reply(cmd, f"Recorded tip from {giver} of ${amount:.02f} with type {reason}")
     else:
         await ChatReplies().send_reply(cmd, f"Recorded tip from {giver} of ${amount:.02f}")
+
+
+def pubsub_bit_redeem(data: BitRedeem):
+    ts = int(data.timestamp.timestamp() * 1000)
+    log.info(f"{ts} {data.user} sent {data.title} for {data.cost} bits (PubSub Message)")
+    if data.type == BitType.GIGANTIFIED_EMOTE:
+        if data.cost != SETTINGS.bits.giant_emote_bits:
+            log.warning(f"!!! Settings gigantic_emote is {SETTINGS.bits.giant_emote_bits} but Twitch said {data.cost}")
+    elif data.type == BitType.ANIMATED_MESSAGE:
+        if data.cost != SETTINGS.bits.animated_message_bits:
+            log.warning(
+                f"!!! Settings animated message is {SETTINGS.bits.animated_message_bits} but Twitch said {data.cost}"
+            )
+    elif data.type == BitType.CELEBRATION:
+        if data.cost != SETTINGS.bits.on_screen_bits:
+            log.warning(
+                f"!!! Settings on-screen celebration is {SETTINGS.bits.on_screen_bits} but Twitch said {data.cost}"
+            )
+        Donos().add_event(ts=ts, user=data.user, type=BITS, amount=data.cost, target="celebration")
+    elif data.type == BitType.POWER_UP:
+        pass
