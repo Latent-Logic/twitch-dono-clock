@@ -5,7 +5,7 @@ description = "Twitch donothon clock based on reading chat"
 authors = [{name="Latent Logic", email="lat.logic@gmail.com"}]
 readme = "README.md"
 packages = [{include = "twitch_dono_clock"}]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dynamic = ["dependencies"]
 
 [tool.poetry.dependencies]
