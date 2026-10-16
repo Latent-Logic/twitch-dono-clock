@@ -97,7 +97,7 @@ def handle_message(frame: dict, topic: str, callback: Callable[[BitRedeem], None
     log.debug(f"{data=}")
     try:
         event = parse_bit_redemption(data)
-    except (KeyError, TypeError) as e:
+    except (KeyError, TypeError, ValueError) as e:
         log.warning(f"Failed to parse redemption: {e!r}")
         return
 
