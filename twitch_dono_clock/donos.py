@@ -292,19 +292,23 @@ async def add_tip_command(cmd: ChatCommand):
 def pubsub_bit_redeem(data: BitRedeem):
     ts = int(data.timestamp.timestamp() * 1000)
     log.info(f"{ts} {data.user} sent {data.title} for {data.cost} bits (PubSub Message)")
+    if data.user.lower() == SETTINGS.twitch.channel.lower():
+        log.info("PubSub bit redeem skipped because it is from channel account")
     if data.type == BitType.GIGANTIFIED_EMOTE:
+        Donos().add_event(ts=ts, user=data.user, type=BITS, amount=data.cost, target="giant-emote")
         if data.cost != SETTINGS.bits.giant_emote_bits:
             log.warning(f"!!! Settings gigantic_emote is {SETTINGS.bits.giant_emote_bits} but Twitch said {data.cost}")
     elif data.type == BitType.ANIMATED_MESSAGE:
+        Donos().add_event(ts=ts, user=data.user, type=BITS, amount=data.cost, target="animated-msg")
         if data.cost != SETTINGS.bits.animated_message_bits:
             log.warning(
                 f"!!! Settings animated message is {SETTINGS.bits.animated_message_bits} but Twitch said {data.cost}"
             )
     elif data.type == BitType.CELEBRATION:
+        Donos().add_event(ts=ts, user=data.user, type=BITS, amount=data.cost, target="celebration")
         if data.cost != SETTINGS.bits.on_screen_bits:
             log.warning(
                 f"!!! Settings on-screen celebration is {SETTINGS.bits.on_screen_bits} but Twitch said {data.cost}"
             )
-        Donos().add_event(ts=ts, user=data.user, type=BITS, amount=data.cost, target="celebration")
     elif data.type == BitType.POWER_UP:
-        pass
+        Donos().add_event(ts=ts, user=data.user, type=BITS, amount=data.cost, target="power-up")

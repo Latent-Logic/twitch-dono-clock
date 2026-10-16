@@ -118,7 +118,7 @@ async def on_message(msg: ChatMessage):
             amount=int(msg.bits),
         )
     fancy_msg = msg._parsed["tags"].get("msg-id")
-    if fancy_msg and msg.user.name.lower() != msg.room.name.lower():
+    if fancy_msg and not SETTINGS.twitch.pubsub and msg.user.name.lower() != msg.room.name.lower():
         if fancy_msg == "gigantified-emote-message":
             log.info(f"{msg.sent_timestamp} {msg.user.display_name} sent a Giant Emote {msg.text}")
             Donos().add_event(
@@ -331,8 +331,10 @@ async def lifespan(app: FastAPI):
     channel = await first(twitch.get_users(logins=[SETTINGS.twitch.channel]))
     assert channel is not None
 
-    # Start PubSub listener for community-points-channel
-    pubsub_task = asyncio.create_task(subscribe_redemptions(channel.id, pubsub_bit_redeem))
+    pubsub_task = None
+    if SETTINGS.twitch.pubsub:
+        # Start PubSub listener for community-points-channel
+        pubsub_task = asyncio.create_task(subscribe_redemptions(channel.id, pubsub_bit_redeem))
 
     # create eventsub websocket instance and start the client.
     eventsub = None
@@ -381,11 +383,12 @@ async def lifespan(app: FastAPI):
 
     if eventsub:
         await eventsub.stop()
-    pubsub_task.cancel()
-    try:
-        await pubsub_task
-    except asyncio.CancelledError:
-        pass
+    if pubsub_task:
+        pubsub_task.cancel()
+        try:
+            await pubsub_task
+        except asyncio.CancelledError:
+            pass
     # now we can close the chat bot and the twitch api client
     chat.stop()
     await twitch.close()

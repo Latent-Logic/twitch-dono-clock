@@ -7,6 +7,7 @@ user_token_file = "usr_token.toml"  # Twitch user auth file
 enable_cmds = true  # Set to false to disable listening for commands
 cmd_app_auth_reply = true  # Set to false to use IRC reply only
 admin_users = ["latentlogic"]  # Users who can always run commands
+pubsub = true  # Use Twitch's old PubSub topic for bit redeems
 eventsub = true
 pause_on_offline = true  # Auto pause when channel goes offline
 unpause_on_online = false  # Auto resume timer when channel goes online

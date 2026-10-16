@@ -24,6 +24,7 @@ class SetTwitch(BaseModel):
     enable_cmds: bool
     cmd_app_auth_reply: bool = True
     admin_users: list[str]
+    pubsub: bool = True
     eventsub: bool
     pause_on_offline: bool
     unpause_on_online: bool
