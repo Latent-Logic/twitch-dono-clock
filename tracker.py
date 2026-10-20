@@ -33,6 +33,8 @@ from twitch_dono_clock.config import (
     CSV_TYPES,
     SETTINGS,
     SUBS,
+    TARGET_LIT,
+    Targeting,
     load_overrides,
     override_value,
 )
@@ -570,6 +572,30 @@ async def get_events_targets():
         else:
             donation_targets[row["type"]][target] = amount
     return donation_targets
+
+
+@app.get("/events/latest", response_class=JSONResponseP)
+async def get_events_latest():
+    """Return all the latest donations for each given type / target"""
+    return {k.as_key(): v.to_dict() for k, v in Donos().latest.items()}
+
+
+@app.get("/events/latest/{dono_type}", response_class=JSONResponseP)
+async def get_events_latest_type(dono_type: Literal[TARGET_LIT, "*"], target: str = ""):
+    """Return the latest donation for a given type / target"""
+    if dono_type == "*":
+        dono_type = ""
+    goal = Targeting(dono_type, target)
+    donos = Donos()
+    if goal in donos.latest:
+        return donos.latest[goal].to_dict()
+    raise HTTPException(status_code=404, detail="Type/Target not found")
+
+
+@app.get("/events/dedupes", response_class=JSONResponseP)
+async def get_events_dedupes():
+    """Return the users already recorded for each dedupe filter configured"""
+    return {k.as_key(): v for k, v in Donos().dedupe_filter.items()}
 
 
 @app.get("/donors", response_class=HTMLResponse)

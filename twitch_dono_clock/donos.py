@@ -1,13 +1,22 @@
 import csv
 import logging
-from collections.abc import Iterable
-from datetime import datetime
+from collections.abc import Iterable, Iterator
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple, cast
 
 from twitchAPI.chat import ChatCommand
 
-from twitch_dono_clock.config import CSV_TYPES, SETTINGS, SUBS, T1, T2, T3
+from twitch_dono_clock.config import (
+    CSV_TYPES,
+    SETTINGS,
+    SUBS,
+    T1,
+    T2,
+    T3,
+    TARGET_LIT,
+    Targeting,
+)
 from twitch_dono_clock.utils import BitRedeem, BitType, ChatReplies, Singleton
 
 log = logging.getLogger(__name__)
@@ -16,16 +25,69 @@ CSV_COLUMNS = ["time", "user", "target", "type", "amount"]
 BITS, TIPS, SUBS_T1, SUBS_T2, SUBS_T3, FOLLOWS = CSV_TYPES
 
 
+class CSVRow(NamedTuple):
+    time: str  # Leaving as twitch string for reduced parsing when not needed
+    user: str
+    target: str | None
+    type: TARGET_LIT
+    amount: float | int
+
+    @classmethod
+    def from_row(cls, row: dict[str, Any], amount: float | int | None):
+        return cls(
+            time=row["time"],
+            user=row["user"],
+            target=row["target"] or None,
+            type=row["type"],
+            amount=amount if amount is not None else float(row["amount"]),
+        )
+
+    @property
+    def datetime(self) -> datetime:
+        return datetime.fromtimestamp(int(self.time) / 1000, UTC)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "time": self.datetime,
+            "user": self.user,
+            "type": self.type,
+            "target": self.target,
+            "amount": self.amount,
+        }
+
+
+class CSVData(NamedTuple):
+    donos: dict[str, Any]
+    filter_out: dict[Targeting, set[str]]
+    latest: dict[Targeting, CSVRow]
+
+
 class Donos(metaclass=Singleton):
     dono_path = Path(SETTINGS.db.events)
+    donos: dict[str, Any]
+    dedupe_filter: dict[Targeting, set[str]]
+    latest: dict[Targeting, CSVRow]
 
-    def __init__(self, new_dict: dict[str, Any] | None = None, ff: set[str] | None = None):
+    def __init__(
+        self,
+        new_dict: dict[str, Any] | None = None,
+        filter_out: dict[Targeting, set[str]] | None = None,
+        latest: dict[Targeting, CSVRow] | None = None,
+    ):
         if new_dict is None:
             self.donos = {BITS: 0, SUBS: {T1: 0, T2: 0, T3: 0}, TIPS: 0, FOLLOWS: 0}
         else:
             assert BITS in new_dict and TIPS in new_dict and SUBS in new_dict and FOLLOWS in new_dict
             self.donos = new_dict
-        self.follow_filter: set[str] = ff if ff else set()
+        if filter_out is None:
+            self.dedupe_filter = {t: set() for t in SETTINGS.dedupe_targets}
+        else:
+            self.dedupe_filter = filter_out
+        if latest is None:
+            assert not new_dict, f"Latest should only be empty if donos is also empty {new_dict=}"
+            self.latest = {}
+        else:
+            self.latest = latest
 
     @staticmethod
     def sub_from_twitch_plan(plan: str) -> str:
@@ -38,12 +100,36 @@ class Donos(metaclass=Singleton):
             assert reader.fieldnames == CSV_COLUMNS
             yield from reader
 
+    @staticmethod
+    def _gen_latest_targets(dono_type: TARGET_LIT, target: str | None) -> Iterator[Targeting]:
+        if dono_type.startswith("subs_"):
+            yield Targeting("subs", "")
+            yield Targeting(dono_type, "")
+        elif dono_type in {TIPS, BITS}:
+            if target:
+                yield Targeting(dono_type, target)
+            yield Targeting(dono_type, "")
+
+        if dono_type == FOLLOWS:
+            yield Targeting(dono_type, "")
+        else:  # Follows don't count as a generic last donation
+            yield Targeting("", "")
+
     @classmethod
-    def read_csv(cls) -> dict[str, Any]:
+    def read_csv(cls) -> CSVData:
         donos = {BITS: 0, SUBS: {T1: 0, T2: 0, T3: 0}, TIPS: 0, FOLLOWS: 0}
+        filter_out: dict[Targeting, set[str]] = {t: set() for t in SETTINGS.dedupe_targets}
+        latest: dict[Targeting, CSVRow] = {}
         for row in cls.csv_iter():
+            user = row["user"].lower()
+            if dedupe_target := SETTINGS.dedupe_filter(row["type"], row["target"]):
+                if user in filter_out[dedupe_target]:
+                    raise ValueError(f"Found Duplicate {user=} in {row=}")
+                filter_out[dedupe_target].add(user)
+            amount = None
             if row["type"] == BITS:
-                donos[BITS] += int(row["amount"])
+                amount = int(row["amount"])
+                donos[BITS] += amount
             elif row["type"] == TIPS:
                 conv = SETTINGS.tips.convert.get(row["target"])
                 amount = float(row["amount"])
@@ -55,14 +141,22 @@ class Donos(metaclass=Singleton):
                 donos[TIPS] += amount
             elif row["type"].startswith("subs_"):
                 if row["type"].endswith("_t1"):
-                    donos[SUBS][T1] += int(row["amount"])
+                    amount = int(row["amount"])
+                    donos[SUBS][T1] += amount
                 elif row["type"].endswith("_t2"):
-                    donos[SUBS][T2] += int(row["amount"])
+                    amount = int(row["amount"])
+                    donos[SUBS][T2] += amount
                 elif row["type"].endswith("_t3"):
-                    donos[SUBS][T3] += int(row["amount"])
+                    amount = int(row["amount"])
+                    donos[SUBS][T3] += amount
             elif row["type"] == FOLLOWS:
-                donos[FOLLOWS] += int(row["amount"])
-        return donos
+                amount = int(row["amount"])
+                donos[FOLLOWS] += amount
+            assert amount is not None
+            row_tuple = CSVRow.from_row(row, amount)
+            for latest_target in cls._gen_latest_targets(cast(TARGET_LIT, row["type"]), row["target"]):
+                latest[latest_target] = row_tuple
+        return CSVData(donos, filter_out, latest)
 
     @classmethod
     def read_donors(cls) -> dict[str, Any]:
@@ -83,27 +177,17 @@ class Donos(metaclass=Singleton):
         return donor_db
 
     @classmethod
-    def build_follow_filter(cls) -> set[str]:
-        follow_filter = set()
-        for row in cls.csv_iter():
-            if row["type"] == FOLLOWS:
-                follow_filter.add(row["user"].lower())
-        log.info(f"{follow_filter=}")
-        return follow_filter
-
-    @classmethod
     def load_csv(cls):
         if not cls.dono_path.is_file():
             log.warning(f"No CSV file found at {cls.dono_path}, creating one")
             cls.dono_path.parent.mkdir(exist_ok=True, parents=True)
             cls.dono_path.write_text(",".join(CSV_COLUMNS) + "\n")
             return cls()
-        donos = cls.read_csv()
-        follow_filter = cls.build_follow_filter() if donos[FOLLOWS] else None
-        log.info(f"Loaded dono events CSV file and got: {donos}")
-        return cls(donos, follow_filter)
+        csv_data = cls.read_csv()
+        log.info(f"Loaded dono events CSV file and got: {csv_data.donos}")
+        return cls(*csv_data)
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         to_return = dict(self.donos)
         to_return[SUBS] = dict(to_return[SUBS])
         return to_return
@@ -115,18 +199,25 @@ class Donos(metaclass=Singleton):
         self.dono_path.rename(new_filename)
         self.dono_path.write_text(",".join(CSV_COLUMNS) + "\n")
         self.reload_csv()
-        self.follow_filter = set()
         return new_filename
 
     def reload_csv(self):
         old_dict = self.to_dict()
-        self.donos = self.read_csv()
-        self.follow_filter = self.build_follow_filter() if self.donos[FOLLOWS] else set()
+        csv_data = self.read_csv()
+        self.donos = csv_data.donos
+        self.latest = csv_data.latest
+        self.dedupe_filter = csv_data.filter_out
         log.info(f"Reloaded CSV file, went from {old_dict} to {self.donos}")
 
     def add_event(self, ts: int, user: str, type: str, amount: int | float, target: str | None = None):
         if not self.dono_path.is_file():
             raise FileNotFoundError(f"No CSV file found at {self.dono_path}, Should have been created earlier?!?")
+        if dedupe_target := SETTINGS.dedupe_filter(type, target or ""):
+            if user.lower() in self.dedupe_filter[dedupe_target]:
+                log.info(f"Ignoring duplicate {dedupe_target=} on {type=} {target=} from {user=} of {amount=}")
+                return
+            self.dedupe_filter[dedupe_target].add(user.lower())
+        total_amount = amount
         if type == BITS:
             self.donos[BITS] += amount
         elif type == TIPS:
@@ -135,9 +226,8 @@ class Donos(metaclass=Singleton):
                 log.info(
                     f"Converting {target} dono of {amount} to {amount*conv.ratio} from {conv.src} to {conv.target}"
                 )
-                self.donos[TIPS] += amount * conv.ratio
-            else:
-                self.donos[TIPS] += amount
+                total_amount = amount * conv.ratio
+            self.donos[TIPS] += total_amount
         elif type == SUBS_T1:
             self.donos[SUBS][T1] += amount
         elif type == SUBS_T2:
@@ -145,13 +235,12 @@ class Donos(metaclass=Singleton):
         elif type == SUBS_T3:
             self.donos[SUBS][T3] += amount
         elif type == FOLLOWS:
-            if user.lower() in self.follow_filter:
-                log.warning(f"Duplicate follow identified for {user}, ignoring")
-                return
-            self.follow_filter.add(user.lower())
             self.donos[FOLLOWS] += amount
         else:
             raise ValueError(f"Add event w/ type {type} is not recognized")
+        csv_row = CSVRow(str(ts), user, target, cast(TARGET_LIT, type), total_amount)
+        for latest_target in self._gen_latest_targets(cast(TARGET_LIT, type), target):
+            self.latest[latest_target] = csv_row
         with self.dono_path.open("a", encoding="utf-8") as f:
             csv.DictWriter(f, CSV_COLUMNS, lineterminator="\n").writerow(
                 {"time": ts, "user": user, "target": target or "", "type": type, "amount": amount}

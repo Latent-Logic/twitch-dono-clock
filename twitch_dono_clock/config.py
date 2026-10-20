@@ -2,7 +2,7 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, NamedTuple
 
 import toml
 from fastapi import HTTPException
@@ -13,6 +13,9 @@ log = logging.getLogger(__name__)
 SUBS, T1, T2, T3 = "subs", "t1", "t2", "t3"
 CSV_TYPES = ["bits", "tips", f"{SUBS}_{T1}", f"{SUBS}_{T2}", f"{SUBS}_{T3}", "follows"]
 BITS, TIPS, SUBS_T1, SUBS_T2, SUBS_T3, FOLLOWS = CSV_TYPES
+
+TARGET_SUBS_LIT = Literal["subs", "subs_t1", "subs_t2", "subs_t3"]
+TARGET_LIT = Literal["bits", "tips", TARGET_SUBS_LIT, "follows", ""]
 
 
 class SetTwitch(BaseModel):
@@ -105,6 +108,7 @@ class SetTips(BaseModel):
     points: float = 1.0
     msg: dict[str, SetRegex] = Field(default_factory=dict)
     convert: dict[str, Conversions] = Field(default_factory=dict)
+    dedupe_targets: list[str] = Field(default_factory=list)
 
 
 class SetBits(BaseModel):
@@ -115,6 +119,7 @@ class SetBits(BaseModel):
     giant_emote_bits: int = 30
     on_screen_bits: int = 40
     msg: dict[str, SetRegex] = Field(default_factory=dict)
+    dedupe_targets: list[str] = Field(default_factory=list)
 
 
 class SetSubValue(BaseModel):
@@ -136,6 +141,7 @@ class SetSubs(BaseModel):
     ignore_prime: bool = False
     plan: dict[str, str]
     tier: SetSubsTiers
+    dedupe_types: list[TARGET_SUBS_LIT] = Field(default_factory=list)
 
 
 class SetFollows(BaseModel):
@@ -161,6 +167,21 @@ class SetFmt(BaseModel):
     tremove_success: str
 
 
+class MsgRegex(NamedTuple):
+    user: str
+    regex: re.Pattern
+    type: TARGET_LIT
+    target: str | None
+
+
+class Targeting(NamedTuple):
+    type: TARGET_LIT
+    target: str  # Empty string is wildcard, only valid for tips/bits
+
+    def as_key(self):
+        return f"(type={self.type!r}, target={self.target!r})"
+
+
 class Settings(BaseModel):
     twitch: SetTwitch
     start: SetStart
@@ -174,23 +195,55 @@ class Settings(BaseModel):
     follows: SetFollows = Field(default_factory=SetFollows)
     fmt: SetFmt
 
-    _compiled_re: list[tuple[str, re.Pattern, str, str | None]] = []
+    _compiled_re: list[MsgRegex] = []
 
     @model_validator(mode="after")
     def compile_regex(self):
         if self.end.max_minutes:
             assert self.end.max_minutes > self.start.minutes, "end.max_minutes must be larger than start.minutes"
         for user, obj in self.bits.msg.items():
-            self._compiled_re.append((user, obj.re, BITS, obj.target))
+            self._compiled_re.append(MsgRegex(user, obj.re, "bits", obj.target))
         for user, obj in self.tips.msg.items():
-            self._compiled_re.append((user, obj.re, TIPS, obj.target))
+            self._compiled_re.append(MsgRegex(user, obj.re, "tips", obj.target))
         for user, obj in self.follows.msg.items():
-            self._compiled_re.append((user, obj.re, FOLLOWS, obj.target))
+            self._compiled_re.append(MsgRegex(user, obj.re, "follows", obj.target))
         return self
 
     @property
-    def compiled_re(self) -> list[tuple[str, re.Pattern, str, str | None]]:
+    def compiled_re(self) -> list[MsgRegex]:
         return self._compiled_re
+
+    _dedupe_targets: list[Targeting] = []
+
+    @model_validator(mode="after")
+    def compile_dedupe_filters(self):
+        # Always dedupe followers if they're enabled
+        self._dedupe_targets.append(Targeting("follows", ""))
+        for sub_type in self.subs.dedupe_types:
+            self._dedupe_targets.append(Targeting(sub_type, ""))
+        for bit_target in self.bits.dedupe_targets:
+            self._dedupe_targets.append(Targeting("bits", bit_target))
+        for tip_target in self.tips.dedupe_targets:
+            self._dedupe_targets.append(Targeting("tips", tip_target))
+        return self
+
+    @property
+    def dedupe_targets(self) -> list[Targeting]:
+        return self._dedupe_targets
+
+    @staticmethod
+    def _target_filter(target: Targeting, s_type: str, s_target: str) -> bool:
+        if target.type not in {BITS, TIPS}:
+            return target.type == s_type
+        if target.target == "":
+            return target.type == s_type
+        return target.type == s_type and target.target == s_target
+
+    def dedupe_filter(self, s_type: str, s_target: str) -> Targeting | None:
+        for target in self._dedupe_targets:
+            if self._target_filter(target, s_type, s_target):
+                return target
+        return None
 
     def get_value(self, type_name: str) -> float | int:
         money_map = {
