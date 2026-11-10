@@ -22,7 +22,7 @@ def pause_generator(pause_file: Path) -> Iterator[tuple[datetime, float]]:
         time_str, pause_str, why_str = line.split("\t")
         time = datetime.fromisoformat(time_str)
         cur_pause = float(pause_str)
-        if "Ended" in why_str and "online" in why_str:
+        if "Ended" in why_str and ("online" in why_str or float(why_str.rsplit(" ", 1)[-1]) >= 300):
             yield time, cur_pause
 
 
